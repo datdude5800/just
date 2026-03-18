@@ -58,6 +58,11 @@ const Dashboard = () => {
   const [auditResults, setAuditResults] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
 
+  // Social media search state
+  const [socialQuery, setSocialQuery] = useState('');
+  const [socialSearchType, setSocialSearchType] = useState('email');
+  const [socialResults, setSocialResults] = useState(null);
+
   const [expandedSections, setExpandedSections] = useState({});
 
   const toggleSection = (section) => {
@@ -323,6 +328,39 @@ const Dashboard = () => {
     }
   };
 
+  const searchSocialMedia = async () => {
+    if (!socialQuery) {
+      toast.error('Please enter an email or username');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/social/search`, {
+        query: socialQuery,
+        search_type: socialSearchType
+      });
+      setSocialResults(response.data);
+      
+      addToSession({
+        type: 'social_search',
+        target: socialQuery,
+        status: 'completed',
+        details: { accounts_found: response.data.total_accounts }
+      });
+      
+      if (response.data.compromised_count > 0) {
+        toast.error(`${response.data.compromised_count} compromised accounts found!`);
+      } else {
+        toast.success(`${response.data.total_accounts} accounts found - all secure`);
+      }
+    } catch (error) {
+      toast.error('Social media search failed: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <Toaster position="top-right" richColors />
@@ -455,6 +493,20 @@ const Dashboard = () => {
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
               SECURITY SERVICES
+            </div>
+          </button>
+          <button
+            data-testid="tab-social"
+            onClick={() => setActiveTab('social')}
+            className={`px-8 py-4 font-body font-medium border-b-2 transition-colors ${
+              activeTab === 'social'
+                ? 'border-[#0055FF] text-[#0055FF]'
+                : 'border-transparent text-[#71717A] hover:text-[#09090B]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              SOCIAL MEDIA
             </div>
           </button>
         </div>
@@ -1503,6 +1555,285 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Social Media Search */}
+        {activeTab === 'social' && (
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-white border border-[#E4E4E7] p-8 mb-6">
+              <div className="label-uppercase mb-4">SOCIAL MEDIA ACCOUNT DISCOVERY</div>
+              <p className="text-[#71717A] font-body mb-6">
+                Search all major social media platforms to find accounts, check for compromises, and view exposed passwords.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+                <div className="md:col-span-3">
+                  <select
+                    data-testid="social-search-type"
+                    value={socialSearchType}
+                    onChange={(e) => setSocialSearchType(e.target.value)}
+                    className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                  >
+                    <option value="email">Email Address</option>
+                    <option value="username">Username</option>
+                  </select>
+                </div>
+                <div className="md:col-span-7">
+                  <input
+                    data-testid="social-query-input"
+                    type="text"
+                    value={socialQuery}
+                    onChange={(e) => setSocialQuery(e.target.value)}
+                    placeholder={socialSearchType === 'email' ? 'user@example.com' : 'username'}
+                    className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <button
+                    data-testid="search-social-btn"
+                    onClick={searchSocialMedia}
+                    disabled={loading}
+                    className="w-full btn-primary h-full flex items-center justify-center gap-2"
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Globe className="w-5 h-5" />}
+                    SEARCH
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#FFF5E6] border border-[#FFCC00]">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-[#FFCC00] flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-[#09090B] font-body">
+                    <strong>Ethical Use:</strong> Only search for accounts you own or have authorization to investigate.
+                    All searches are logged and monitored for compliance.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {socialResults && (
+              <div className="space-y-6">
+                {/* Summary */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[#E4E4E7]">
+                  <div className="bg-white p-6">
+                    <div className="label-uppercase mb-2">ACCOUNTS FOUND</div>
+                    <div className="font-heading font-black text-4xl text-[#0055FF]">
+                      {socialResults.total_accounts}
+                    </div>
+                  </div>
+                  <div className="bg-white p-6">
+                    <div className="label-uppercase mb-2">COMPROMISED</div>
+                    <div className="font-heading font-black text-4xl text-[#FF3333]">
+                      {socialResults.compromised_count}
+                    </div>
+                  </div>
+                  <div className="bg-white p-6">
+                    <div className="label-uppercase mb-2">PLATFORMS</div>
+                    <div className="font-body text-sm text-[#71717A] mt-2">
+                      {socialResults.platforms_found.join(', ')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Accounts */}
+                <div className="bg-white border border-[#E4E4E7]">
+                  <div className="bg-[#F4F4F5] px-6 py-3 border-b border-[#E4E4E7]">
+                    <div className="label-uppercase">DISCOVERED ACCOUNTS</div>
+                  </div>
+                  <div className="divide-y divide-[#E4E4E7]">
+                    {socialResults.accounts.map((account, idx) => (
+                      <div key={idx} className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <div className="flex items-center gap-3 mb-2">
+                              <h3 className="font-heading font-black text-xl text-[#09090B]">
+                                {account.name}
+                              </h3>
+                              {account.compromised && (
+                                <span className="status-badge status-error">COMPROMISED</span>
+                              )}
+                              {!account.has_2fa && (
+                                <span className="status-badge status-warning">NO 2FA</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-[#71717A]">
+                              <span className="font-code">{account.username}</span>
+                              <span>•</span>
+                              <span>{account.followers} followers</span>
+                              <span>•</span>
+                              <span>Created: {account.created_date}</span>
+                            </div>
+                          </div>
+                          <a
+                            href={account.profile_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-outline py-2 px-4 text-sm"
+                          >
+                            VIEW PROFILE
+                          </a>
+                        </div>
+
+                        {account.compromised && (
+                          <div className="border border-[#FF3333] bg-[#FFE6E6] p-4 mb-3">
+                            <div className="flex items-start gap-3 mb-3">
+                              <Lock className="w-5 h-5 text-[#FF3333] flex-shrink-0 mt-0.5" />
+                              <div>
+                                <div className="font-body font-medium text-[#FF3333] mb-1">
+                                  DATA BREACH DETECTED - {account.breach_date}
+                                </div>
+                                <div className="text-sm text-[#09090B]">
+                                  <strong>Exposed:</strong> {account.exposed_data.join(', ')}
+                                </div>
+                              </div>
+                            </div>
+
+                            {account.password_found && (
+                              <div className="mt-3 pt-3 border-t border-[#FF3333]">
+                                <div className="label-uppercase text-[#FF3333] mb-2 text-xs">
+                                  COMPROMISED PASSWORD
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div>
+                                    <div className="text-xs text-[#71717A] mb-1">Hash:</div>
+                                    <div className="font-code text-xs bg-white border border-[#FF3333] p-2 break-all">
+                                      {account.password_hash}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-[#71717A] mb-1">Plaintext:</div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="font-code text-sm font-bold text-[#FF3333] bg-white border border-[#FF3333] p-2 flex-1">
+                                        {account.password_plaintext}
+                                      </div>
+                                      <button
+                                        onClick={() => copyToClipboard(account.password_plaintext)}
+                                        className="p-2 hover:bg-white border border-[#FF3333] transition-colors"
+                                      >
+                                        {copied ? <Check className="w-4 h-4 text-[#00CC66]" /> : <Copy className="w-4 h-4 text-[#FF3333]" />}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {!account.compromised && (
+                          <div className="border border-[#00CC66] bg-[#E6F7EE] p-3 flex items-center gap-2">
+                            <Check className="w-5 h-5 text-[#00CC66]" />
+                            <span className="text-sm text-[#09090B]">
+                              No breaches detected • Account appears secure
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Remediation Services */}
+                {socialResults.compromised_count > 0 && (
+                  <div className="bg-white border border-[#E4E4E7] p-8">
+                    <div className="label-uppercase mb-6">PROFESSIONAL REMEDIATION SERVICES</div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {socialResults.remediation_services.map((service, idx) => (
+                        <div
+                          key={idx}
+                          className={`border-2 p-6 relative ${
+                            service.popular ? 'border-[#0055FF] bg-[#E6F0FF]' :
+                            service.urgent ? 'border-[#FF3333] bg-[#FFE6E6]' :
+                            'border-[#E4E4E7] bg-white'
+                          }`}
+                        >
+                          {service.popular && (
+                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#0055FF] text-white px-4 py-1 text-xs font-bold">
+                              MOST POPULAR
+                            </div>
+                          )}
+                          {service.urgent && (
+                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#FF3333] text-white px-4 py-1 text-xs font-bold">
+                              URGENT
+                            </div>
+                          )}
+                          
+                          <div className="text-center mb-4 mt-2">
+                            <div className="font-heading font-black text-3xl mb-1 text-[#0055FF]">
+                              ${service.price}
+                            </div>
+                            <div className="text-xs text-[#71717A]">{service.duration}</div>
+                          </div>
+                          
+                          <h3 className="font-heading font-black text-lg text-[#09090B] mb-3 text-center">
+                            {service.service}
+                          </h3>
+                          
+                          <p className="text-sm text-[#71717A] mb-4 text-center">
+                            {service.description}
+                          </p>
+                          
+                          <div className="space-y-2 mb-4">
+                            {service.deliverables.map((item, i) => (
+                              <div key={i} className="flex items-start gap-2 text-sm">
+                                <Check className="w-4 h-4 text-[#00CC66] flex-shrink-0 mt-0.5" />
+                                <span className="text-[#09090B]">{item}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {service.savings && (
+                            <div className="text-xs text-[#00CC66] font-medium mb-3 text-center">
+                              {service.savings}
+                            </div>
+                          )}
+                          
+                          <button
+                            data-testid={`purchase-social-${idx}`}
+                            className={`w-full py-3 font-body font-medium transition-colors ${
+                              service.popular ? 'bg-[#0055FF] text-white hover:bg-[#0044DD]' :
+                              service.urgent ? 'bg-[#FF3333] text-white hover:bg-[#DD2222]' :
+                              'bg-[#09090B] text-white hover:bg-[#18181B]'
+                            }`}
+                            onClick={() => {
+                              toast.success(`Payment integration would process $${service.price} for ${service.service}`);
+                            }}
+                          >
+                            {service.urgent ? 'GET HELP NOW' : 'PURCHASE NOW'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Free Recommendations */}
+                {socialResults.security_recommendations && (
+                  <div className="bg-white border border-[#E4E4E7] p-8">
+                    <div className="label-uppercase mb-4">FREE SECURITY RECOMMENDATIONS</div>
+                    <ul className="space-y-3">
+                      {socialResults.security_recommendations.map((rec, idx) => (
+                        <li key={idx} className="flex items-start gap-3 font-body text-[#09090B]">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-[#0055FF] text-white text-xs font-bold">
+                            {idx + 1}
+                          </span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!socialResults && (
+              <div className="bg-white border border-[#E4E4E7] p-12 text-center text-[#71717A] font-body">
+                Enter an email address or username above to search for social media accounts
+              </div>
+            )}
           </div>
         )}
       </div>

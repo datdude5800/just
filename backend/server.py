@@ -124,6 +124,20 @@ class SecurityAuditResponse(BaseModel):
     premium_features: List[Dict[str, Any]]
     estimated_cost: float
 
+class SocialMediaSearchRequest(BaseModel):
+    query: str
+    search_type: str = "email"
+
+class SocialMediaSearchResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    query: str
+    total_accounts: int
+    platforms_found: List[str]
+    accounts: List[Dict[str, Any]]
+    compromised_count: int
+    security_recommendations: List[str]
+    remediation_services: List[Dict[str, Any]]
+
 def detect_hash_type(hash_value: str) -> tuple:
     """Detect hash type based on length and characteristics"""
     hash_clean = hash_value.strip().lower()
@@ -669,6 +683,214 @@ async def generate_security_audit(email: str, website_url: Optional[str] = None)
         "estimated_cost": premium_features[0]["price"] if hash_digit > 5 else premium_features[3]["price"]
     }
 
+async def search_social_media_accounts(query: str, search_type: str) -> Dict[str, Any]:
+    """Search for social media accounts and check for compromises (SIMULATED DATA)"""
+    query_hash = hashlib.md5(query.lower().encode()).hexdigest()
+    hash_digit = int(query_hash[0], 16)
+    
+    platforms = [
+        {
+            "name": "Facebook",
+            "icon": "facebook",
+            "username": f"{query.split('@')[0] if '@' in query else query}",
+            "profile_url": f"https://facebook.com/{query.split('@')[0] if '@' in query else query}",
+            "created_date": "2015-03-12",
+            "last_active": "2024-01-15",
+            "followers": 432 + (hash_digit * 50),
+            "compromised": hash_digit > 3,
+            "breach_date": "2019-04-03" if hash_digit > 3 else None,
+            "exposed_data": ["Email", "Phone", "Name", "DOB", "Location"] if hash_digit > 3 else [],
+            "password_found": hash_digit > 7,
+            "password_hash": "5f4dcc3b5aa765d61d8327deb882cf99" if hash_digit > 7 else None,
+            "password_plaintext": "password123" if hash_digit > 7 else None,
+            "has_2fa": hash_digit < 5
+        },
+        {
+            "name": "Twitter/X",
+            "icon": "twitter",
+            "username": f"@{query.split('@')[0] if '@' in query else query}",
+            "profile_url": f"https://twitter.com/{query.split('@')[0] if '@' in query else query}",
+            "created_date": "2016-07-22",
+            "last_active": "2024-02-01",
+            "followers": 1250 + (hash_digit * 100),
+            "compromised": hash_digit > 5,
+            "breach_date": "2023-01-01" if hash_digit > 5 else None,
+            "exposed_data": ["Email", "Username", "Phone"] if hash_digit > 5 else [],
+            "password_found": hash_digit > 8,
+            "password_hash": "e10adc3949ba59abbe56e057f20f883e" if hash_digit > 8 else None,
+            "password_plaintext": "123456" if hash_digit > 8 else None,
+            "has_2fa": hash_digit < 6
+        },
+        {
+            "name": "Instagram",
+            "icon": "instagram",
+            "username": f"{query.split('@')[0] if '@' in query else query}_ig",
+            "profile_url": f"https://instagram.com/{query.split('@')[0] if '@' in query else query}_ig",
+            "created_date": "2017-11-05",
+            "last_active": "2024-02-10",
+            "followers": 892 + (hash_digit * 75),
+            "compromised": hash_digit > 4,
+            "breach_date": "2021-08-15" if hash_digit > 4 else None,
+            "exposed_data": ["Email", "Phone", "Bio", "Photos metadata"] if hash_digit > 4 else [],
+            "password_found": hash_digit > 9,
+            "password_hash": "25d55ad283aa400af464c76d713c07ad" if hash_digit > 9 else None,
+            "password_plaintext": "12345678" if hash_digit > 9 else None,
+            "has_2fa": hash_digit < 4
+        },
+        {
+            "name": "LinkedIn",
+            "icon": "linkedin",
+            "username": query.split('@')[0] if '@' in query else query,
+            "profile_url": f"https://linkedin.com/in/{query.split('@')[0] if '@' in query else query}",
+            "created_date": "2014-05-18",
+            "last_active": "2024-01-28",
+            "followers": 567 + (hash_digit * 60),
+            "compromised": hash_digit > 6,
+            "breach_date": "2021-06-22" if hash_digit > 6 else None,
+            "exposed_data": ["Email", "Full name", "Phone", "Address", "Work history"] if hash_digit > 6 else [],
+            "password_found": hash_digit > 10,
+            "password_hash": "827ccb0eea8a706c4c34a16891f84e7b" if hash_digit > 10 else None,
+            "password_plaintext": "12345" if hash_digit > 10 else None,
+            "has_2fa": hash_digit < 7
+        },
+        {
+            "name": "TikTok",
+            "icon": "tiktok",
+            "username": f"@{query.split('@')[0] if '@' in query else query}_tt",
+            "profile_url": f"https://tiktok.com/@{query.split('@')[0] if '@' in query else query}_tt",
+            "created_date": "2020-02-14",
+            "last_active": "2024-02-09",
+            "followers": 2340 + (hash_digit * 200),
+            "compromised": hash_digit > 2,
+            "breach_date": "2022-09-10" if hash_digit > 2 else None,
+            "exposed_data": ["Email", "Phone", "Videos metadata"] if hash_digit > 2 else [],
+            "password_found": hash_digit > 11,
+            "password_hash": "fcea920f7412b5da7be0cf42b8c93759" if hash_digit > 11 else None,
+            "password_plaintext": "iloveyou" if hash_digit > 11 else None,
+            "has_2fa": hash_digit < 3
+        },
+        {
+            "name": "Reddit",
+            "icon": "reddit",
+            "username": f"u/{query.split('@')[0] if '@' in query else query}",
+            "profile_url": f"https://reddit.com/user/{query.split('@')[0] if '@' in query else query}",
+            "created_date": "2018-08-30",
+            "last_active": "2024-02-11",
+            "followers": 145 + (hash_digit * 20),
+            "compromised": hash_digit > 7,
+            "breach_date": "2020-03-20" if hash_digit > 7 else None,
+            "exposed_data": ["Email", "Username", "Post history"] if hash_digit > 7 else [],
+            "password_found": hash_digit > 12,
+            "password_hash": "5d41402abc4b2a76b9719d911017c592" if hash_digit > 12 else None,
+            "password_plaintext": "hello" if hash_digit > 12 else None,
+            "has_2fa": hash_digit < 8
+        },
+        {
+            "name": "GitHub",
+            "icon": "github",
+            "username": query.split('@')[0] if '@' in query else query,
+            "profile_url": f"https://github.com/{query.split('@')[0] if '@' in query else query}",
+            "created_date": "2016-03-25",
+            "last_active": "2024-02-08",
+            "followers": 89 + (hash_digit * 15),
+            "compromised": hash_digit > 8,
+            "breach_date": "2023-05-12" if hash_digit > 8 else None,
+            "exposed_data": ["Email", "Repositories", "SSH keys"] if hash_digit > 8 else [],
+            "password_found": False,
+            "password_hash": None,
+            "password_plaintext": None,
+            "has_2fa": hash_digit < 9
+        },
+        {
+            "name": "Discord",
+            "icon": "discord",
+            "username": f"{query.split('@')[0] if '@' in query else query}#1234",
+            "profile_url": f"discord://user/{hash_digit}123456789",
+            "created_date": "2019-11-10",
+            "last_active": "2024-02-12",
+            "followers": 234 + (hash_digit * 30),
+            "compromised": hash_digit > 9,
+            "breach_date": "2021-12-15" if hash_digit > 9 else None,
+            "exposed_data": ["Email", "Phone", "Server memberships"] if hash_digit > 9 else [],
+            "password_found": hash_digit > 13,
+            "password_hash": "098f6bcd4621d373cade4e832627b4f6" if hash_digit > 13 else None,
+            "password_plaintext": "test" if hash_digit > 13 else None,
+            "has_2fa": hash_digit < 10
+        }
+    ]
+    
+    found_accounts = []
+    for i, platform in enumerate(platforms):
+        if hash_digit > i:
+            found_accounts.append(platform)
+    
+    compromised_count = sum(1 for acc in found_accounts if acc["compromised"])
+    password_count = sum(1 for acc in found_accounts if acc["password_found"])
+    
+    recommendations = [
+        "Change passwords on all compromised platforms immediately",
+        "Enable two-factor authentication (2FA) on all accounts",
+        "Use unique passwords for each platform",
+        "Monitor accounts for suspicious activity",
+        "Review and update privacy settings on all platforms"
+    ]
+    
+    remediation_services = [
+        {
+            "service": "Social Media Security Package",
+            "description": "Comprehensive security overhaul for all your social media accounts",
+            "deliverables": [
+                "Password reset for all compromised accounts",
+                "2FA setup on all platforms",
+                "Privacy settings optimization",
+                "Account recovery setup",
+                "Security training session"
+            ],
+            "price": 199.99,
+            "duration": "One-time",
+            "savings": "Save $50 vs individual resets"
+        },
+        {
+            "service": "Identity Protection Plan",
+            "description": "Ongoing monitoring and protection for your digital identity",
+            "deliverables": [
+                "Dark web monitoring",
+                "Real-time breach alerts",
+                "Monthly security reports",
+                "Identity theft insurance ($1M coverage)",
+                "24/7 fraud resolution support"
+            ],
+            "price": 49.99,
+            "duration": "Monthly",
+            "popular": True
+        },
+        {
+            "service": "Emergency Account Recovery",
+            "description": "Immediate assistance to secure compromised accounts",
+            "deliverables": [
+                "24-hour response time",
+                "Direct platform communication",
+                "Password recovery assistance",
+                "Content removal support",
+                "Legal documentation"
+            ],
+            "price": 299.99,
+            "duration": "Per incident",
+            "urgent": True
+        }
+    ]
+    
+    return {
+        "total_accounts": len(found_accounts),
+        "platforms_found": [acc["name"] for acc in found_accounts],
+        "accounts": found_accounts,
+        "compromised_count": compromised_count,
+        "password_count": password_count,
+        "security_recommendations": recommendations,
+        "remediation_services": remediation_services,
+        "note": "⚠️ SIMULATED DATA FOR DEMONSTRATION - Search uses algorithmic simulation, not real social media APIs"
+    }
+
 @api_router.get("/")
 async def root():
     return {"message": "Security Testing API", "version": "1.0.0"}
@@ -1089,6 +1311,47 @@ async def get_security_pricing():
     ]
     
     return {"services": services, "total_services": len(services)}
+
+@api_router.post("/social/search", response_model=SocialMediaSearchResponse)
+async def search_social_media(request: SocialMediaSearchRequest):
+    """Search for social media accounts by email or username"""
+    query = request.query.strip()
+    search_type = request.search_type.lower()
+    
+    if search_type == "email" and not validate_email(query):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    if search_type == "username" and len(query) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    
+    search_data = await search_social_media_accounts(query, search_type)
+    
+    response = SocialMediaSearchResponse(
+        query=query,
+        total_accounts=search_data["total_accounts"],
+        platforms_found=search_data["platforms_found"],
+        accounts=search_data["accounts"],
+        compromised_count=search_data["compromised_count"],
+        security_recommendations=search_data["security_recommendations"],
+        remediation_services=search_data["remediation_services"]
+    )
+    
+    search_doc = response.model_dump()
+    await db.social_searches.insert_one({
+        **search_doc,
+        "_id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "search_type": search_type,
+        "note": search_data["note"]
+    })
+    
+    return response
+
+@api_router.get("/social/history")
+async def get_social_search_history():
+    """Get social media search history"""
+    searches = await db.social_searches.find({}, {"_id": 0}).sort("timestamp", -1).limit(20).to_list(20)
+    return {"searches": searches, "count": len(searches)}
 
 app.include_router(api_router)
 
