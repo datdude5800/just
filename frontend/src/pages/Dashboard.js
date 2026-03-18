@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Shield, Hash, Globe, Play, Loader2, ChevronDown, ChevronUp, Copy, Check, Mail, AlertTriangle } from 'lucide-react';
+import { Shield, Hash, Globe, Play, Loader2, ChevronDown, ChevronUp, Copy, Check, Mail, AlertTriangle, Eye, Lock, DollarSign, CreditCard } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -40,6 +40,23 @@ const Dashboard = () => {
   // Email breach state
   const [emailInput, setEmailInput] = useState('');
   const [breachResults, setBreachResults] = useState(null);
+
+  // Hash cracking state
+  const [crackHashInput, setCrackHashInput] = useState('');
+  const [crackHashType, setCrackHashType] = useState('MD5');
+  const [crackMethod, setCrackMethod] = useState('dictionary');
+  const [crackResults, setCrackResults] = useState(null);
+  const [sessionHistory, setSessionHistory] = useState([]);
+
+  // Breach details state
+  const [detailEmail, setDetailEmail] = useState('');
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [breachDetails, setBreachDetails] = useState(null);
+
+  // Security audit state
+  const [auditEmail, setAuditEmail] = useState('');
+  const [auditResults, setAuditResults] = useState(null);
+  const [selectedService, setSelectedService] = useState(null);
 
   const [expandedSections, setExpandedSections] = useState({});
 
@@ -148,6 +165,13 @@ const Dashboard = () => {
       });
       setBreachResults(response.data);
       
+      addToSession({
+        type: 'breach_check',
+        target: emailInput,
+        status: 'completed',
+        details: response.data
+      });
+      
       if (response.data.breaches_found > 0) {
         toast.error(`${response.data.breaches_found} breaches found!`);
       } else {
@@ -155,6 +179,145 @@ const Dashboard = () => {
       }
     } catch (error) {
       toast.error('Breach check failed: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const crackHash = async () => {
+    if (!crackHashInput) {
+      toast.error('Please enter a hash value');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/hash/crack`, {
+        hash_value: crackHashInput,
+        hash_type: crackHashType,
+        method: crackMethod,
+        max_length: crackMethod === 'bruteforce' ? 4 : undefined
+      });
+      setCrackResults(response.data);
+      
+      addToSession({
+        type: 'hash_crack',
+        target: crackHashInput,
+        status: response.data.cracked ? 'cracked' : 'failed',
+        details: response.data
+      });
+      
+      if (response.data.cracked) {
+        toast.success(`Hash cracked! Plaintext: ${response.data.plaintext}`);
+      } else {
+        toast.error('Unable to crack hash');
+      }
+    } catch (error) {
+      toast.error('Hash cracking failed: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addToSession = (item) => {
+    setSessionHistory(prev => [{
+      ...item,
+      timestamp: new Date().toISOString()
+    }, ...prev].slice(0, 50));
+  };
+
+  const exportSession = async (format) => {
+    try {
+      const sessionData = {
+        exported_at: new Date().toISOString(),
+        results: sessionHistory,
+        summary: {
+          total_activities: sessionHistory.length,
+          successful: sessionHistory.filter(h => h.status === 'completed' || h.status === 'cracked').length
+        }
+      };
+
+      const response = await axios.post(`${API}/session/export`, {
+        session_data: sessionData,
+        export_format: format
+      }, {
+        responseType: 'blob'
+      });
+
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `seccheck_session_${Date.now()}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`Session exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      toast.error('Export failed: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  const getBreachDetails = async () => {
+    if (!detailEmail) {
+      toast.error('Please enter an email address');
+      return;
+    }
+
+    if (!consentGiven) {
+      toast.error('You must acknowledge ethical use before viewing sensitive data');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/breach/detailed`, {
+        email: detailEmail,
+        reveal_sensitive: consentGiven
+      });
+      setBreachDetails(response.data);
+      
+      addToSession({
+        type: 'breach_details',
+        target: detailEmail,
+        status: 'completed',
+        details: { total_records: response.data.total_records }
+      });
+      
+      toast.warning(`${response.data.total_records} breach records found with sensitive data`);
+    } catch (error) {
+      toast.error('Breach details failed: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runSecurityAudit = async () => {
+    if (!auditEmail) {
+      toast.error('Please enter an email address');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/security/audit`, {
+        email: auditEmail,
+        include_consultation: true
+      });
+      setAuditResults(response.data);
+      
+      addToSession({
+        type: 'security_audit',
+        target: auditEmail,
+        status: 'completed',
+        details: { score: response.data.security_score }
+      });
+      
+      toast.success('Security audit completed');
+    } catch (error) {
+      toast.error('Security audit failed: ' + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -171,7 +334,25 @@ const Dashboard = () => {
             <Shield className="w-8 h-8 text-[#0055FF]" />
             <h1 className="font-heading font-black text-2xl tracking-tightest text-[#09090B]">SECCHECK</h1>
           </div>
-          <div className="label-uppercase text-[#71717A]">SECURITY DASHBOARD</div>
+          <div className="flex items-center gap-4">
+            <div className="label-uppercase text-[#71717A]">SESSION: {sessionHistory.length} ITEMS</div>
+            <button
+              data-testid="export-json-btn"
+              onClick={() => exportSession('json')}
+              className="btn-outline py-2 px-4 text-sm"
+              disabled={sessionHistory.length === 0}
+            >
+              EXPORT JSON
+            </button>
+            <button
+              data-testid="export-txt-btn"
+              onClick={() => exportSession('txt')}
+              className="btn-outline py-2 px-4 text-sm"
+              disabled={sessionHistory.length === 0}
+            >
+              EXPORT TXT
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -232,6 +413,48 @@ const Dashboard = () => {
             <div className="flex items-center gap-2">
               <Mail className="w-4 h-4" />
               BREACH LOOKUP
+            </div>
+          </button>
+          <button
+            data-testid="tab-crack"
+            onClick={() => setActiveTab('crack')}
+            className={`px-8 py-4 font-body font-medium border-b-2 transition-colors ${
+              activeTab === 'crack'
+                ? 'border-[#0055FF] text-[#0055FF]'
+                : 'border-transparent text-[#71717A] hover:text-[#09090B]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Hash className="w-4 h-4" />
+              HASH CRACKER
+            </div>
+          </button>
+          <button
+            data-testid="tab-details"
+            onClick={() => setActiveTab('details')}
+            className={`px-8 py-4 font-body font-medium border-b-2 transition-colors ${
+              activeTab === 'details'
+                ? 'border-[#0055FF] text-[#0055FF]'
+                : 'border-transparent text-[#71717A] hover:text-[#09090B]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              BREACH DETAILS
+            </div>
+          </button>
+          <button
+            data-testid="tab-security"
+            onClick={() => setActiveTab('security')}
+            className={`px-8 py-4 font-body font-medium border-b-2 transition-colors ${
+              activeTab === 'security'
+                ? 'border-[#0055FF] text-[#0055FF]'
+                : 'border-transparent text-[#71717A] hover:text-[#09090B]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              SECURITY SERVICES
             </div>
           </button>
         </div>
@@ -740,6 +963,543 @@ const Dashboard = () => {
                       </ul>
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Hash Cracker */}
+        {activeTab === 'crack' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-[#E4E4E7]">
+            {/* Input Panel */}
+            <div className="lg:col-span-5 bg-white p-8">
+              <div className="label-uppercase mb-6">HASH CRACKING ENGINE</div>
+              
+              <div className="mb-6">
+                <label className="block font-body font-medium text-[#09090B] mb-2">
+                  Hash Value
+                </label>
+                <textarea
+                  data-testid="crack-hash-input"
+                  value={crackHashInput}
+                  onChange={(e) => setCrackHashInput(e.target.value)}
+                  placeholder="Enter hash to crack..."
+                  className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-code text-sm focus:outline-none focus:border-[#0055FF] h-32"
+                />
+              </div>
+
+              <div className="mb-6">
+                <label className="block font-body font-medium text-[#09090B] mb-2">
+                  Hash Type
+                </label>
+                <select
+                  data-testid="crack-hash-type-select"
+                  value={crackHashType}
+                  onChange={(e) => setCrackHashType(e.target.value)}
+                  className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                >
+                  <option value="MD5">MD5</option>
+                  <option value="SHA-256">SHA-256</option>
+                  <option value="SHA-512">SHA-512</option>
+                  <option value="SHA3-256">SHA3-256</option>
+                  <option value="SHA3-512">SHA3-512</option>
+                  <option value="BLAKE2B">BLAKE2b</option>
+                  <option value="BLAKE2S">BLAKE2s</option>
+                  <option value="NTLM">NTLM</option>
+                </select>
+              </div>
+
+              <div className="mb-6">
+                <label className="block font-body font-medium text-[#09090B] mb-2">
+                  Cracking Method
+                </label>
+                <select
+                  data-testid="crack-method-select"
+                  value={crackMethod}
+                  onChange={(e) => setCrackMethod(e.target.value)}
+                  className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                >
+                  <option value="dictionary">Dictionary Attack</option>
+                  <option value="bruteforce">Brute Force (Max 4 chars)</option>
+                </select>
+              </div>
+
+              <div className="mb-6 p-4 bg-[#FFE6E6] border border-[#FF3333]">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-[#FF3333] flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-[#09090B] font-body">
+                    <strong>ETHICAL USE ONLY:</strong> Only crack hashes you own or have permission to test.
+                    Unauthorized password cracking is illegal.
+                  </div>
+                </div>
+              </div>
+
+              <button
+                data-testid="crack-hash-btn"
+                onClick={crackHash}
+                disabled={loading}
+                className="w-full btn-primary flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    CRACKING...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5" />
+                    START CRACKING
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Results Panel */}
+            <div className="lg:col-span-7 bg-white p-8">
+              <div className="label-uppercase mb-6">CRACKING RESULTS</div>
+              
+              {!crackResults && (
+                <div className="flex items-center justify-center h-64 text-[#71717A] font-body">
+                  Configure hash parameters and start cracking.
+                </div>
+              )}
+
+              {crackResults && (
+                <div className="space-y-4">
+                  {/* Status Banner */}
+                  <div className={`p-6 border-2 ${
+                    crackResults.cracked 
+                      ? 'bg-[#E6F7EE] border-[#00CC66]' 
+                      : 'bg-[#FFE6E6] border-[#FF3333]'
+                  }`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      {crackResults.cracked ? (
+                        <Check className="w-8 h-8 text-[#00CC66]" />
+                      ) : (
+                        <AlertTriangle className="w-8 h-8 text-[#FF3333]" />
+                      )}
+                      <div>
+                        <div className="font-heading font-black text-2xl text-[#09090B] uppercase">
+                          {crackResults.cracked ? 'HASH CRACKED' : 'CRACK FAILED'}
+                        </div>
+                        <div className="font-body text-sm text-[#71717A]">
+                          {crackResults.attempts.toLocaleString()} attempts in {crackResults.time_taken}s
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hash Info */}
+                  <div className="border border-[#E4E4E7] p-4">
+                    <div className="label-uppercase mb-2">HASH TYPE</div>
+                    <div className="font-heading font-black text-xl text-[#0055FF]">
+                      {crackResults.hash_type}
+                    </div>
+                  </div>
+
+                  <div className="border border-[#E4E4E7] p-4">
+                    <div className="label-uppercase mb-2">METHOD USED</div>
+                    <div className="font-body text-[#09090B] capitalize">
+                      {crackResults.method_used.replace('_', ' ')}
+                    </div>
+                  </div>
+
+                  {/* Plaintext Result */}
+                  {crackResults.cracked && crackResults.plaintext && (
+                    <div className="border-2 border-[#00CC66] p-6 bg-[#E6F7EE]">
+                      <div className="label-uppercase mb-3 text-[#00CC66]">RECOVERED PLAINTEXT</div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="font-code text-2xl font-bold text-[#09090B] break-all">
+                          {crackResults.plaintext}
+                        </div>
+                        <button
+                          data-testid="copy-plaintext-btn"
+                          onClick={() => copyToClipboard(crackResults.plaintext)}
+                          className="flex-shrink-0 p-2 hover:bg-white border border-[#00CC66] transition-colors"
+                        >
+                          {copied ? (
+                            <Check className="w-5 h-5 text-[#00CC66]" />
+                          ) : (
+                            <Copy className="w-5 h-5 text-[#00CC66]" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-px bg-[#E4E4E7]">
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase mb-2">ATTEMPTS</div>
+                      <div className="font-heading font-black text-3xl text-[#0055FF]">
+                        {crackResults.attempts.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase mb-2">TIME TAKEN</div>
+                      <div className="font-heading font-black text-3xl text-[#FF3333]">
+                        {crackResults.time_taken}s
+                      </div>
+                    </div>
+                  </div>
+
+                  {!crackResults.cracked && (
+                    <div className="border border-[#E4E4E7] p-6 bg-[#F4F4F5]">
+                      <div className="label-uppercase mb-3">SUGGESTIONS</div>
+                      <ul className="space-y-2 text-sm text-[#09090B] font-body">
+                        <li>• Try switching to bruteforce method for short passwords</li>
+                        <li>• The password may not be in the common dictionary</li>
+                        <li>• Consider using external tools for advanced cracking</li>
+                        <li>• Increase max_length for brute force (warning: computationally expensive)</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Breach Details Viewer */}
+        {activeTab === 'details' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-[#E4E4E7]">
+            {/* Input Panel */}
+            <div className="lg:col-span-5 bg-white p-8">
+              <div className="label-uppercase mb-6">DETAILED BREACH ANALYSIS</div>
+              
+              <div className="mb-6">
+                <label className="block font-body font-medium text-[#09090B] mb-2">
+                  Email Address
+                </label>
+                <input
+                  data-testid="detail-email-input"
+                  type="email"
+                  value={detailEmail}
+                  onChange={(e) => setDetailEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                />
+              </div>
+
+              <div className="mb-6 p-6 bg-[#FFE6E6] border-2 border-[#FF3333]">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertTriangle className="w-6 h-6 text-[#FF3333] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-heading font-black text-lg text-[#FF3333] mb-2">
+                      CRITICAL WARNING
+                    </div>
+                    <div className="text-sm text-[#09090B] font-body mb-3">
+                      This feature reveals SENSITIVE DATA including passwords, phone numbers, and personal information from data breaches.
+                    </div>
+                    <ul className="text-xs text-[#09090B] font-body space-y-1 mb-4">
+                      <li>• Only use for accounts you own or have authorization to investigate</li>
+                      <li>• Data is for security assessment purposes ONLY</li>
+                      <li>• Unauthorized access or misuse is illegal</li>
+                      <li>• All queries are logged for legal compliance</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    data-testid="consent-checkbox"
+                    type="checkbox"
+                    checked={consentGiven}
+                    onChange={(e) => setConsentGiven(e.target.checked)}
+                    className="w-5 h-5 border-2 border-[#FF3333] accent-[#FF3333] mt-0.5"
+                  />
+                  <span className="text-sm text-[#09090B] font-body">
+                    I confirm I have legal authorization to view this data and will use it ethically for security purposes only
+                  </span>
+                </label>
+              </div>
+
+              <button
+                data-testid="reveal-breach-btn"
+                onClick={getBreachDetails}
+                disabled={loading || !consentGiven}
+                className="w-full btn-primary flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    ANALYZING...
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-5 h-5" />
+                    REVEAL BREACH DATA
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Results Panel */}
+            <div className="lg:col-span-7 bg-white p-8">
+              <div className="label-uppercase mb-6">EXPOSED DATA</div>
+              
+              {!breachDetails && (
+                <div className="flex items-center justify-center h-64 text-[#71717A] font-body text-center px-8">
+                  Acknowledge ethical use terms and enter email to view detailed breach data.
+                </div>
+              )}
+
+              {breachDetails && (
+                <div className="space-y-4">
+                  {/* Summary */}
+                  <div className="border-2 border-[#FF3333] bg-[#FFE6E6] p-6">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Lock className="w-8 h-8 text-[#FF3333]" />
+                      <div>
+                        <div className="font-heading font-black text-2xl text-[#09090B]">
+                          {breachDetails.total_records} BREACH RECORDS
+                        </div>
+                        <div className="font-body text-sm text-[#71717A] uppercase">
+                          Severity: {breachDetails.severity}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Exposed Data Summary */}
+                  <div className="grid grid-cols-2 gap-px bg-[#E4E4E7]">
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase mb-2">PASSWORDS</div>
+                      <div className="font-heading font-black text-3xl text-[#FF3333]">
+                        {breachDetails.exposed_data.passwords}
+                      </div>
+                    </div>
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase mb-2">PHONE NUMBERS</div>
+                      <div className="font-heading font-black text-3xl text-[#FFCC00]">
+                        {breachDetails.exposed_data.phones}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Compromised Passwords */}
+                  {breachDetails.compromised_passwords && breachDetails.compromised_passwords.length > 0 && (
+                    <div className="border border-[#E4E4E7]">
+                      <div className="bg-[#FFE6E6] px-6 py-3 border-b border-[#FF3333]">
+                        <div className="label-uppercase text-[#FF3333]">COMPROMISED PASSWORDS</div>
+                      </div>
+                      <div className="divide-y divide-[#E4E4E7]">
+                        {breachDetails.compromised_passwords.map((pwd, idx) => (
+                          <div key={idx} className="p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-body font-medium text-[#09090B]">{pwd.source}</span>
+                              <span className={`status-badge ${pwd.cracked ? 'status-error' : 'status-warning'}`}>
+                                {pwd.cracked ? 'CRACKED' : 'ENCRYPTED'}
+                              </span>
+                            </div>
+                            <div className="hash-display mb-2 text-xs">
+                              Hash: {pwd.password_hash}
+                            </div>
+                            {pwd.cracked && pwd.plaintext && (
+                              <div className="bg-[#FFE6E6] border border-[#FF3333] p-3 flex items-center justify-between">
+                                <div>
+                                  <div className="text-xs label-uppercase text-[#FF3333] mb-1">PLAINTEXT PASSWORD</div>
+                                  <div className="font-code font-bold text-[#09090B]">{pwd.plaintext}</div>
+                                </div>
+                                <button
+                                  onClick={() => copyToClipboard(pwd.plaintext)}
+                                  className="p-2 hover:bg-white transition-colors"
+                                >
+                                  {copied ? <Check className="w-4 h-4 text-[#00CC66]" /> : <Copy className="w-4 h-4 text-[#FF3333]" />}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Phone Records */}
+                  {breachDetails.phone_records && breachDetails.phone_records.length > 0 && (
+                    <div className="border border-[#E4E4E7] p-6">
+                      <div className="label-uppercase mb-3">EXPOSED PHONE NUMBERS</div>
+                      <div className="space-y-2">
+                        {breachDetails.phone_records.map((phone, idx) => (
+                          <div key={idx} className="flex items-center justify-between py-2 border-b border-[#E4E4E7] last:border-0">
+                            <span className="font-code text-[#09090B]">{phone}</span>
+                            <button
+                              onClick={() => copyToClipboard(phone)}
+                              className="p-1 hover:bg-[#F4F4F5] transition-colors"
+                            >
+                              <Copy className="w-4 h-4 text-[#71717A]" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Personal Info */}
+                  {breachDetails.personal_info && (
+                    <div className="border border-[#E4E4E7] p-6">
+                      <div className="label-uppercase mb-3">PERSONAL INFORMATION</div>
+                      <div className="space-y-3 text-sm">
+                        {breachDetails.personal_info.full_name && (
+                          <div className="flex justify-between">
+                            <span className="text-[#71717A]">Name:</span>
+                            <span className="font-body text-[#09090B]">{breachDetails.personal_info.full_name}</span>
+                          </div>
+                        )}
+                        {breachDetails.personal_info.date_of_birth && (
+                          <div className="flex justify-between">
+                            <span className="text-[#71717A]">DOB:</span>
+                            <span className="font-body text-[#09090B]">{breachDetails.personal_info.date_of_birth}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {breachDetails.requires_premium && (
+                    <div className="bg-[#0055FF] text-white p-6">
+                      <div className="flex items-center gap-3 mb-3">
+                        <CreditCard className="w-6 h-6" />
+                        <div className="font-heading font-black text-xl">UPGRADE FOR FULL REPORT</div>
+                      </div>
+                      <p className="text-white/90 mb-4 text-sm">
+                        Get complete breach analysis with remediation steps and ongoing monitoring.
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('security')}
+                        className="bg-white text-[#0055FF] px-6 py-2 font-body font-medium hover:bg-white/90 transition-colors"
+                      >
+                        VIEW SECURITY SERVICES
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Security Services */}
+        {activeTab === 'security' && (
+          <div className="max-w-6xl mx-auto">
+            <div className="mb-8 p-8 bg-white border border-[#E4E4E7]">
+              <div className="label-uppercase mb-4">SECURITY AUDIT & CONSULTATION</div>
+              <p className="text-[#71717A] font-body mb-6">
+                Get professional security assessment and personalized recommendations to protect your digital presence.
+              </p>
+              
+              <div className="flex gap-4 mb-6">
+                <input
+                  data-testid="audit-email-input"
+                  type="email"
+                  value={auditEmail}
+                  onChange={(e) => setAuditEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="flex-1 px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                />
+                <button
+                  data-testid="run-audit-btn"
+                  onClick={runSecurityAudit}
+                  disabled={loading}
+                  className="btn-primary px-8 flex items-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Shield className="w-5 h-5" />}
+                  RUN AUDIT
+                </button>
+              </div>
+
+              {auditResults && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-6 border-2 border-[#0055FF] bg-[#E6F0FF]">
+                    <div>
+                      <div className="label-uppercase text-[#0055FF] mb-1">SECURITY SCORE</div>
+                      <div className="font-heading font-black text-5xl text-[#0055FF]">
+                        {auditResults.security_score}/100
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="label-uppercase text-[#71717A] mb-1">VULNERABILITIES</div>
+                      <div className="font-heading font-black text-3xl text-[#FF3333]">
+                        {auditResults.vulnerabilities.length}
+                      </div>
+                    </div>
+                  </div>
+
+                  {auditResults.vulnerabilities.length > 0 && (
+                    <div className="border border-[#E4E4E7]">
+                      <div className="bg-[#F4F4F5] px-6 py-3 border-b border-[#E4E4E7]">
+                        <div className="label-uppercase">IDENTIFIED VULNERABILITIES</div>
+                      </div>
+                      <div className="divide-y divide-[#E4E4E7]">
+                        {auditResults.vulnerabilities.map((vuln, idx) => (
+                          <div key={idx} className="p-4">
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="font-body font-medium text-[#09090B]">{vuln.type}</span>
+                              <span className={`status-badge ${
+                                vuln.severity === 'critical' ? 'status-error' :
+                                vuln.severity === 'high' ? 'status-warning' :
+                                'bg-[#FFCC00] text-[#09090B] border-[#FFCC00]'
+                              }`}>
+                                {vuln.severity}
+                              </span>
+                            </div>
+                            <p className="text-sm text-[#71717A]">{vuln.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Premium Services */}
+            <div className="bg-white border border-[#E4E4E7] p-8">
+              <div className="label-uppercase mb-6">PREMIUM SECURITY SERVICES</div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {auditResults && auditResults.premium_features.map((service, idx) => (
+                  <div
+                    key={idx}
+                    className="border-2 border-[#E4E4E7] p-6 hover:border-[#0055FF] transition-colors cursor-pointer"
+                    onClick={() => setSelectedService(service)}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <h3 className="font-heading font-black text-xl text-[#09090B]">{service.service}</h3>
+                      <div className="text-right">
+                        <div className="font-heading font-black text-2xl text-[#0055FF]">
+                          ${service.price}
+                        </div>
+                        <div className="text-xs text-[#71717A]">{service.duration}</div>
+                      </div>
+                    </div>
+                    <p className="text-sm text-[#71717A] mb-4">{service.description}</p>
+                    <div className="space-y-2">
+                      {service.deliverables.map((item, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <Check className="w-4 h-4 text-[#00CC66]" />
+                          <span className="text-[#09090B]">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      data-testid={`purchase-${idx}`}
+                      className="w-full mt-4 bg-[#0055FF] text-white py-3 font-body font-medium hover:bg-[#0044DD] transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toast.success(`Payment integration would process $${service.price} for ${service.service}`);
+                      }}
+                    >
+                      PURCHASE NOW
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {!auditResults && (
+                <div className="text-center py-12 text-[#71717A] font-body">
+                  Run a security audit above to view personalized service recommendations
                 </div>
               )}
             </div>

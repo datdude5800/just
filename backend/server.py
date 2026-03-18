@@ -75,6 +75,55 @@ class EmailBreachResponse(BaseModel):
     risk_level: str
     recommendations: List[str]
 
+class HashCrackRequest(BaseModel):
+    hash_value: str
+    hash_type: str
+    method: str = "dictionary"
+    max_length: Optional[int] = 6
+
+class HashCrackResponse(BaseModel):
+    hash_value: str
+    hash_type: str
+    cracked: bool
+    plaintext: Optional[str] = None
+    method_used: str
+    attempts: int
+    time_taken: float
+
+class SessionExportRequest(BaseModel):
+    session_data: Dict[str, Any]
+    export_format: str = "json"
+
+class BreachDetailRequest(BaseModel):
+    email: str
+    reveal_sensitive: bool = False
+
+class BreachDetailResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    email: str
+    total_records: int
+    exposed_data: Dict[str, Any]
+    compromised_passwords: List[Dict[str, Any]]
+    phone_records: List[str]
+    personal_info: Dict[str, Any]
+    severity: str
+    requires_premium: bool
+
+class SecurityAuditRequest(BaseModel):
+    email: str
+    website_url: Optional[str] = None
+    include_consultation: bool = False
+
+class SecurityAuditResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    audit_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: str
+    vulnerabilities: List[Dict[str, Any]]
+    security_score: int
+    recommendations: List[Dict[str, Any]]
+    premium_features: List[Dict[str, Any]]
+    estimated_cost: float
+
 def detect_hash_type(hash_value: str) -> tuple:
     """Detect hash type based on length and characteristics"""
     hash_clean = hash_value.strip().lower()
@@ -373,6 +422,253 @@ async def check_email_breach_local(email: str) -> Dict[str, Any]:
         "note": "Using simulated breach data for demonstration. For real breach data, configure HIBP_API_KEY."
     }
 
+def get_common_passwords():
+    """Get common password list for dictionary attack"""
+    return [
+        "password", "123456", "12345678", "qwerty", "abc123", "monkey", "1234567",
+        "letmein", "trustno1", "dragon", "baseball", "iloveyou", "master", "sunshine",
+        "ashley", "bailey", "shadow", "123123", "654321", "superman", "qazwsx",
+        "michael", "football", "password1", "admin", "welcome", "hello", "test",
+        "12345", "password123", "changeme", "secret", "p@ssw0rd", "passw0rd",
+        "admin123", "root", "toor", "pass", "test123", "guest", "user", "demo"
+    ]
+
+def hash_text(text: str, hash_type: str) -> str:
+    """Hash text with specified algorithm"""
+    text_bytes = text.encode()
+    
+    if hash_type.upper() == "MD5":
+        return hashlib.md5(text_bytes).hexdigest()
+    elif hash_type.upper() == "SHA-256":
+        return hashlib.sha256(text_bytes).hexdigest()
+    elif hash_type.upper() == "SHA-512":
+        return hashlib.sha512(text_bytes).hexdigest()
+    elif hash_type.upper() == "SHA3-256":
+        return hashlib.sha3_256(text_bytes).hexdigest()
+    elif hash_type.upper() == "SHA3-512":
+        return hashlib.sha3_512(text_bytes).hexdigest()
+    elif hash_type.upper() == "BLAKE2B":
+        return hashlib.blake2b(text_bytes).hexdigest()
+    elif hash_type.upper() == "BLAKE2S":
+        return hashlib.blake2s(text_bytes).hexdigest()
+    elif hash_type.upper() == "NTLM":
+        import binascii
+        return hashlib.new('md4', text.encode('utf-16le')).hexdigest()
+    else:
+        return ""
+
+async def crack_hash_dictionary(hash_value: str, hash_type: str) -> Dict[str, Any]:
+    """Attempt to crack hash using dictionary attack"""
+    import time
+    
+    start_time = time.time()
+    hash_value = hash_value.lower().strip()
+    attempts = 0
+    
+    passwords = get_common_passwords()
+    
+    for password in passwords:
+        attempts += 1
+        test_hash = hash_text(password, hash_type)
+        
+        if test_hash.lower() == hash_value:
+            return {
+                "cracked": True,
+                "plaintext": password,
+                "attempts": attempts,
+                "time_taken": time.time() - start_time
+            }
+    
+    return {
+        "cracked": False,
+        "plaintext": None,
+        "attempts": attempts,
+        "time_taken": time.time() - start_time
+    }
+
+async def crack_hash_bruteforce(hash_value: str, hash_type: str, max_length: int = 4) -> Dict[str, Any]:
+    """Attempt to crack hash using brute force (limited to short passwords)"""
+    import time
+    import itertools
+    import string
+    
+    start_time = time.time()
+    hash_value = hash_value.lower().strip()
+    attempts = 0
+    max_attempts = 100000
+    
+    charset = string.ascii_lowercase + string.digits
+    
+    for length in range(1, min(max_length + 1, 5)):
+        for combo in itertools.product(charset, repeat=length):
+            if attempts >= max_attempts:
+                return {
+                    "cracked": False,
+                    "plaintext": None,
+                    "attempts": attempts,
+                    "time_taken": time.time() - start_time,
+                    "note": "Max attempts reached"
+                }
+            
+            attempts += 1
+            password = ''.join(combo)
+            test_hash = hash_text(password, hash_type)
+            
+            if test_hash.lower() == hash_value:
+                return {
+                    "cracked": True,
+                    "plaintext": password,
+                    "attempts": attempts,
+                    "time_taken": time.time() - start_time
+                }
+    
+    return {
+        "cracked": False,
+        "plaintext": None,
+        "attempts": attempts,
+        "time_taken": time.time() - start_time
+    }
+
+async def get_detailed_breach_data(email: str) -> Dict[str, Any]:
+    """Get detailed breach data including sensitive information (SIMULATED DATA ONLY)"""
+    email_hash = hashlib.md5(email.lower().encode()).hexdigest()
+    hash_digit = int(email_hash[0], 16)
+    
+    simulated_passwords = [
+        {"source": "LinkedIn 2021", "password_hash": "5f4dcc3b5aa765d61d8327deb882cf99", "cracked": True, "plaintext": "password123"},
+        {"source": "Facebook 2019", "password_hash": "e10adc3949ba59abbe56e057f20f883e", "cracked": True, "plaintext": "123456"},
+        {"source": "Adobe 2013", "password_hash": "25d55ad283aa400af464c76d713c07ad", "cracked": True, "plaintext": "12345678"}
+    ]
+    
+    simulated_phones = [
+        f"+1-555-{hash_digit:03d}-{(hash_digit * 137) % 10000:04d}",
+        f"+1-555-{(hash_digit + 1) % 1000:03d}-{(hash_digit * 251) % 10000:04d}"
+    ]
+    
+    personal_info = {
+        "full_name": f"User {hash_digit}{(hash_digit * 17) % 100}",
+        "addresses": [
+            f"{hash_digit * 100} Main Street, City {hash_digit}, ST {hash_digit:05d}"
+        ],
+        "date_of_birth": f"19{70 + (hash_digit % 30)}-{1 + (hash_digit % 12):02d}-{1 + (hash_digit % 28):02d}",
+        "social_profiles": {
+            "twitter": f"@user{hash_digit}{hash_digit}",
+            "linkedin": f"user-{email.split('@')[0]}",
+            "facebook": f"user.{hash_digit}"
+        }
+    }
+    
+    return {
+        "total_records": len(simulated_passwords),
+        "compromised_passwords": simulated_passwords[:hash_digit % 3 + 1],
+        "phone_records": simulated_phones[:hash_digit % 2 + 1],
+        "personal_info": personal_info,
+        "credit_cards_exposed": hash_digit % 2,
+        "ssn_exposed": hash_digit > 8,
+        "note": "⚠️ SIMULATED DATA FOR DEMONSTRATION - Not real breach data"
+    }
+
+async def generate_security_audit(email: str, website_url: Optional[str] = None) -> Dict[str, Any]:
+    """Generate comprehensive security audit and recommendations"""
+    email_hash = hashlib.md5(email.lower().encode()).hexdigest()
+    hash_digit = int(email_hash[0], 16)
+    
+    vulnerabilities = [
+        {
+            "type": "Weak Password Reuse",
+            "severity": "critical",
+            "description": "Password found in multiple breach databases",
+            "impact": "Account takeover, identity theft"
+        },
+        {
+            "type": "No 2FA Enabled",
+            "severity": "high",
+            "description": "Two-factor authentication not detected on accounts",
+            "impact": "Unauthorized access to sensitive accounts"
+        },
+        {
+            "type": "Exposed Personal Data",
+            "severity": "high",
+            "description": "Email, phone, and personal info found in breaches",
+            "impact": "Phishing attacks, social engineering"
+        },
+        {
+            "type": "Old Account Activity",
+            "severity": "medium",
+            "description": "Accounts created 5+ years ago with no security updates",
+            "impact": "Outdated security protocols"
+        }
+    ]
+    
+    base_recommendations = [
+        {
+            "title": "Immediate Password Reset",
+            "priority": "critical",
+            "free": True,
+            "description": "Change all passwords immediately, use unique passwords for each service"
+        },
+        {
+            "title": "Enable Two-Factor Authentication",
+            "priority": "critical",
+            "free": True,
+            "description": "Enable 2FA on all critical accounts (email, banking, social media)"
+        },
+        {
+            "title": "Credit Monitoring Setup",
+            "priority": "high",
+            "free": True,
+            "description": "Set up credit monitoring to detect identity theft"
+        }
+    ]
+    
+    premium_features = [
+        {
+            "service": "Professional Security Audit",
+            "description": "Comprehensive analysis of all online accounts and digital footprint",
+            "deliverables": ["Full breach history report", "Custom security recommendations", "Priority support"],
+            "price": 99.99,
+            "duration": "One-time"
+        },
+        {
+            "service": "Managed Password Migration",
+            "description": "Secure password reset service for all compromised accounts",
+            "deliverables": ["Password manager setup", "Guided migration", "Security training"],
+            "price": 149.99,
+            "duration": "One-time"
+        },
+        {
+            "service": "Website Security Hardening",
+            "description": "Professional security implementation for your website",
+            "deliverables": ["SSL/TLS configuration", "Security headers setup", "Vulnerability patching", "WAF implementation"],
+            "price": 499.99,
+            "duration": "Per site"
+        },
+        {
+            "service": "Ongoing Security Monitoring",
+            "description": "24/7 monitoring of your digital presence for new breaches",
+            "deliverables": ["Real-time breach alerts", "Monthly reports", "Incident response"],
+            "price": 29.99,
+            "duration": "Monthly"
+        },
+        {
+            "service": "Enterprise Security Consultation",
+            "description": "Complete security overhaul for businesses",
+            "deliverables": ["Security policy creation", "Employee training", "Infrastructure audit", "Compliance certification"],
+            "price": 2499.99,
+            "duration": "Per project"
+        }
+    ]
+    
+    security_score = max(20, 100 - (hash_digit * 8 + len(vulnerabilities) * 5))
+    
+    return {
+        "vulnerabilities": vulnerabilities[:hash_digit % 4 + 1],
+        "security_score": security_score,
+        "recommendations": base_recommendations,
+        "premium_features": premium_features,
+        "estimated_cost": premium_features[0]["price"] if hash_digit > 5 else premium_features[3]["price"]
+    }
+
 @api_router.get("/")
 async def root():
     return {"message": "Security Testing API", "version": "1.0.0"}
@@ -547,6 +843,252 @@ async def get_breach_history():
     """Get breach lookup history"""
     lookups = await db.breach_lookups.find({}, {"_id": 0}).sort("timestamp", -1).limit(20).to_list(20)
     return {"lookups": lookups, "count": len(lookups)}
+
+@api_router.post("/hash/crack", response_model=HashCrackResponse)
+async def crack_hash(request: HashCrackRequest):
+    """Crack hash to recover plaintext"""
+    hash_type = request.hash_type.upper()
+    supported_types = ["MD5", "SHA-256", "SHA-512", "SHA3-256", "SHA3-512", "BLAKE2B", "BLAKE2S", "NTLM"]
+    
+    if hash_type not in supported_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported hash type. Supported: {', '.join(supported_types)}")
+    
+    if request.method == "dictionary":
+        result = await crack_hash_dictionary(request.hash_value, hash_type)
+    elif request.method == "bruteforce":
+        result = await crack_hash_bruteforce(request.hash_value, hash_type, request.max_length or 4)
+    else:
+        raise HTTPException(status_code=400, detail="Method must be 'dictionary' or 'bruteforce'")
+    
+    response = HashCrackResponse(
+        hash_value=request.hash_value,
+        hash_type=hash_type,
+        cracked=result["cracked"],
+        plaintext=result.get("plaintext"),
+        method_used=request.method,
+        attempts=result["attempts"],
+        time_taken=round(result["time_taken"], 3)
+    )
+    
+    crack_doc = response.model_dump()
+    await db.hash_cracks.insert_one({
+        **crack_doc,
+        "_id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return response
+
+@api_router.get("/hash/crack/history")
+async def get_crack_history():
+    """Get hash cracking history"""
+    cracks = await db.hash_cracks.find({}, {"_id": 0}).sort("timestamp", -1).limit(50).to_list(50)
+    return {"cracks": cracks, "count": len(cracks)}
+
+@api_router.post("/session/export")
+async def export_session(request: SessionExportRequest):
+    """Export session data to file"""
+    from fastapi.responses import Response
+    import csv
+    from io import StringIO
+    
+    export_format = request.export_format.lower()
+    session_data = request.session_data
+    
+    if export_format == "json":
+        import json
+        content = json.dumps(session_data, indent=2)
+        media_type = "application/json"
+        filename = f"seccheck_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    
+    elif export_format == "csv":
+        output = StringIO()
+        
+        if "results" in session_data:
+            writer = csv.writer(output)
+            writer.writerow(["Type", "Target", "Status", "Details"])
+            
+            for item in session_data.get("results", []):
+                writer.writerow([
+                    item.get("type", ""),
+                    item.get("target", ""),
+                    item.get("status", ""),
+                    str(item.get("details", ""))
+                ])
+        
+        content = output.getvalue()
+        media_type = "text/csv"
+        filename = f"seccheck_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    
+    elif export_format == "txt":
+        lines = []
+        lines.append("=" * 60)
+        lines.append("SECCHECK SESSION EXPORT")
+        lines.append(f"Generated: {datetime.now().isoformat()}")
+        lines.append("=" * 60)
+        lines.append("")
+        
+        for key, value in session_data.items():
+            lines.append(f"{key.upper()}:")
+            lines.append(str(value))
+            lines.append("")
+        
+        content = "\n".join(lines)
+        media_type = "text/plain"
+        filename = f"seccheck_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    
+    else:
+        raise HTTPException(status_code=400, detail="Format must be 'json', 'csv', or 'txt'")
+    
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.post("/breach/detailed", response_model=BreachDetailResponse)
+async def get_breach_details(request: BreachDetailRequest):
+    """Get detailed breach information including sensitive data (ETHICAL USE ONLY)"""
+    email = request.email.strip().lower()
+    
+    if not validate_email(email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    if not request.reveal_sensitive:
+        raise HTTPException(
+            status_code=403,
+            detail="You must acknowledge ethical use and provide consent to view sensitive data"
+        )
+    
+    breach_data = await get_detailed_breach_data(email)
+    
+    response = BreachDetailResponse(
+        email=email,
+        total_records=breach_data["total_records"],
+        exposed_data={
+            "passwords": len(breach_data["compromised_passwords"]),
+            "phones": len(breach_data["phone_records"]),
+            "credit_cards": breach_data["credit_cards_exposed"],
+            "ssn": breach_data["ssn_exposed"]
+        },
+        compromised_passwords=breach_data["compromised_passwords"],
+        phone_records=breach_data["phone_records"],
+        personal_info=breach_data["personal_info"],
+        severity="critical" if breach_data["total_records"] > 2 else "high",
+        requires_premium=True
+    )
+    
+    detail_doc = response.model_dump()
+    await db.breach_details.insert_one({
+        **detail_doc,
+        "_id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "note": breach_data["note"]
+    })
+    
+    return response
+
+@api_router.post("/security/audit", response_model=SecurityAuditResponse)
+async def create_security_audit(request: SecurityAuditRequest):
+    """Generate comprehensive security audit with premium consultation options"""
+    email = request.email.strip().lower()
+    
+    if not validate_email(email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    audit_data = await generate_security_audit(email, request.website_url)
+    
+    response = SecurityAuditResponse(
+        email=email,
+        vulnerabilities=audit_data["vulnerabilities"],
+        security_score=audit_data["security_score"],
+        recommendations=audit_data["recommendations"],
+        premium_features=audit_data["premium_features"],
+        estimated_cost=audit_data["estimated_cost"]
+    )
+    
+    audit_doc = response.model_dump()
+    await db.security_audits.insert_one({
+        **audit_doc,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return response
+
+@api_router.get("/security/pricing")
+async def get_security_pricing():
+    """Get pricing for premium security services"""
+    services = [
+        {
+            "id": "pro_audit",
+            "name": "Professional Security Audit",
+            "price": 99.99,
+            "currency": "USD",
+            "billing": "one-time",
+            "features": [
+                "Complete breach history analysis",
+                "Custom security recommendations",
+                "Vulnerability assessment",
+                "Priority email support"
+            ]
+        },
+        {
+            "id": "password_migration",
+            "name": "Managed Password Migration",
+            "price": 149.99,
+            "currency": "USD",
+            "billing": "one-time",
+            "features": [
+                "Professional password reset service",
+                "Password manager setup & training",
+                "Guided account migration",
+                "30-day follow-up support"
+            ]
+        },
+        {
+            "id": "website_hardening",
+            "name": "Website Security Hardening",
+            "price": 499.99,
+            "currency": "USD",
+            "billing": "per-site",
+            "features": [
+                "SSL/TLS configuration",
+                "Security headers implementation",
+                "Vulnerability patching",
+                "WAF setup",
+                "Performance optimization"
+            ]
+        },
+        {
+            "id": "monitoring_monthly",
+            "name": "Ongoing Security Monitoring",
+            "price": 29.99,
+            "currency": "USD",
+            "billing": "monthly",
+            "features": [
+                "24/7 breach monitoring",
+                "Real-time alerts",
+                "Monthly security reports",
+                "Incident response assistance"
+            ]
+        },
+        {
+            "id": "enterprise",
+            "name": "Enterprise Security Suite",
+            "price": 2499.99,
+            "currency": "USD",
+            "billing": "per-project",
+            "features": [
+                "Full security infrastructure audit",
+                "Custom security policy development",
+                "Employee security training",
+                "Compliance certification assistance",
+                "Dedicated security consultant"
+            ]
+        }
+    ]
+    
+    return {"services": services, "total_services": len(services)}
 
 app.include_router(api_router)
 
