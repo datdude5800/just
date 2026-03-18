@@ -123,6 +123,7 @@ class SecurityAuditResponse(BaseModel):
     recommendations: List[Dict[str, Any]]
     premium_features: List[Dict[str, Any]]
     estimated_cost: float
+    detailed_findings: Optional[Dict[str, Any]] = None
 
 class SocialMediaSearchRequest(BaseModel):
     query: str
@@ -587,32 +588,173 @@ async def generate_security_audit(email: str, website_url: Optional[str] = None)
     email_hash = hashlib.md5(email.lower().encode()).hexdigest()
     hash_digit = int(email_hash[0], 16)
     
+    # Get associated accounts and their details
+    username_base = email.split('@')[0]
+    domain = email.split('@')[1] if '@' in email else 'example.com'
+    
+    associated_accounts = [
+        {
+            "platform": "Primary Email",
+            "identifier": email,
+            "username": username_base,
+            "status": "active",
+            "created_date": "2018-03-15",
+            "linked_accounts": [
+                {"email": f"{username_base}@gmail.com", "type": "recovery"},
+                {"email": f"{username_base}_work@{domain}", "type": "alternate"}
+            ],
+            "compromised": hash_digit > 5,
+            "password_found": hash_digit > 7,
+            "password_hash": "5f4dcc3b5aa765d61d8327deb882cf99" if hash_digit > 7 else None,
+            "password_plaintext": "password123" if hash_digit > 7 else None,
+            "2fa_enabled": hash_digit < 5,
+            "last_password_change": "2022-08-12" if hash_digit > 6 else "2024-01-05"
+        },
+        {
+            "platform": "Work Account",
+            "identifier": f"{username_base}@company.com",
+            "username": username_base,
+            "status": "active",
+            "created_date": "2019-06-20",
+            "linked_accounts": [
+                {"email": email, "type": "recovery"}
+            ],
+            "compromised": hash_digit > 6,
+            "password_found": hash_digit > 8,
+            "password_hash": "e10adc3949ba59abbe56e057f20f883e" if hash_digit > 8 else None,
+            "password_plaintext": "123456" if hash_digit > 8 else None,
+            "2fa_enabled": hash_digit < 6,
+            "last_password_change": "2021-11-30" if hash_digit > 7 else "2023-12-20"
+        },
+        {
+            "platform": "Personal Account",
+            "identifier": f"{username_base}@outlook.com",
+            "username": f"{username_base}_personal",
+            "status": "active",
+            "created_date": "2017-02-10",
+            "linked_accounts": [],
+            "compromised": hash_digit > 4,
+            "password_found": hash_digit > 9,
+            "password_hash": "25d55ad283aa400af464c76d713c07ad" if hash_digit > 9 else None,
+            "password_plaintext": "12345678" if hash_digit > 9 else None,
+            "2fa_enabled": False,
+            "last_password_change": "2020-05-15"
+        }
+    ]
+    
+    # Domain analysis if website_url provided
+    domain_data = None
+    if website_url:
+        parsed_domain = urlparse(website_url).netloc or website_url
+        domain_data = {
+            "domain": parsed_domain,
+            "emails_found": [
+                f"admin@{parsed_domain}",
+                f"contact@{parsed_domain}",
+                f"support@{parsed_domain}"
+            ],
+            "exposed_in_breaches": hash_digit > 5,
+            "ssl_valid": hash_digit < 10,
+            "dns_records_exposed": hash_digit > 7,
+            "subdomains_found": [
+                f"mail.{parsed_domain}",
+                f"admin.{parsed_domain}",
+                f"api.{parsed_domain}"
+            ] if hash_digit > 6 else []
+        }
+    
     vulnerabilities = [
         {
             "type": "Weak Password Reuse",
             "severity": "critical",
-            "description": "Password found in multiple breach databases",
-            "impact": "Account takeover, identity theft"
+            "description": "Same password used across multiple accounts",
+            "impact": "Account takeover, identity theft",
+            "affected_accounts": [acc["identifier"] for acc in associated_accounts if acc["password_found"]],
+            "exposed_passwords": [
+                {"account": acc["identifier"], "password": acc["password_plaintext"], "hash": acc["password_hash"]}
+                for acc in associated_accounts if acc["password_found"]
+            ],
+            "remediation_steps": [
+                "Change passwords immediately",
+                "Use unique passwords for each account",
+                "Implement password manager"
+            ]
         },
         {
             "type": "No 2FA Enabled",
             "severity": "high",
-            "description": "Two-factor authentication not detected on accounts",
-            "impact": "Unauthorized access to sensitive accounts"
+            "description": "Two-factor authentication not enabled on critical accounts",
+            "impact": "Unauthorized access to sensitive accounts",
+            "affected_accounts": [acc["identifier"] for acc in associated_accounts if not acc["2fa_enabled"]],
+            "usernames_at_risk": [acc["username"] for acc in associated_accounts if not acc["2fa_enabled"]],
+            "remediation_steps": [
+                "Enable 2FA on all accounts",
+                "Use authenticator app (not SMS)",
+                "Save backup codes securely"
+            ]
         },
         {
             "type": "Exposed Personal Data",
             "severity": "high",
-            "description": "Email, phone, and personal info found in breaches",
-            "impact": "Phishing attacks, social engineering"
+            "description": "Email, usernames, and personal info found in breaches",
+            "impact": "Phishing attacks, social engineering",
+            "affected_accounts": [acc["identifier"] for acc in associated_accounts if acc["compromised"]],
+            "linked_emails": [
+                link["email"] 
+                for acc in associated_accounts 
+                for link in acc.get("linked_accounts", [])
+            ],
+            "remediation_steps": [
+                "Review and update recovery emails",
+                "Monitor for suspicious activity",
+                "Enable breach alerts"
+            ]
         },
         {
-            "type": "Old Account Activity",
+            "type": "Old Password Policies",
             "severity": "medium",
-            "description": "Accounts created 5+ years ago with no security updates",
-            "impact": "Outdated security protocols"
+            "description": "Passwords not changed in over 1 year",
+            "impact": "Outdated security, increased breach risk",
+            "affected_accounts": [
+                acc["identifier"] for acc in associated_accounts 
+                if acc.get("last_password_change", "2024-01-01") < "2023-01-01"
+            ],
+            "last_changes": [
+                {"account": acc["identifier"], "last_change": acc.get("last_password_change")}
+                for acc in associated_accounts
+            ],
+            "remediation_steps": [
+                "Update all passwords immediately",
+                "Set 90-day password rotation",
+                "Use strong, unique passwords"
+            ]
         }
     ]
+    
+    # Detailed findings with all exposed data
+    detailed_findings = {
+        "total_accounts_analyzed": len(associated_accounts),
+        "accounts_with_exposed_data": associated_accounts,
+        "all_usernames": list(set([acc["username"] for acc in associated_accounts])),
+        "all_linked_emails": list(set([
+            link["email"] 
+            for acc in associated_accounts 
+            for link in acc.get("linked_accounts", [])
+        ])),
+        "compromised_credentials": [
+            {
+                "platform": acc["platform"],
+                "username": acc["username"],
+                "email": acc["identifier"],
+                "password_hash": acc.get("password_hash"),
+                "password_plaintext": acc.get("password_plaintext"),
+                "compromised": acc["compromised"],
+                "2fa_status": acc["2fa_enabled"]
+            }
+            for acc in associated_accounts
+        ],
+        "domain_analysis": domain_data
+    }
     
     base_recommendations = [
         {
@@ -626,6 +768,12 @@ async def generate_security_audit(email: str, website_url: Optional[str] = None)
             "priority": "critical",
             "free": True,
             "description": "Enable 2FA on all critical accounts (email, banking, social media)"
+        },
+        {
+            "title": "Update Recovery Emails",
+            "priority": "high",
+            "free": True,
+            "description": "Review and secure all linked and recovery email addresses"
         },
         {
             "title": "Credit Monitoring Setup",
@@ -651,6 +799,13 @@ async def generate_security_audit(email: str, website_url: Optional[str] = None)
             "duration": "One-time"
         },
         {
+            "service": "Complete Identity Protection",
+            "description": "Comprehensive protection for all your accounts and linked emails",
+            "deliverables": ["Monitor all linked accounts", "Dark web monitoring", "Identity theft insurance", "24/7 support"],
+            "price": 79.99,
+            "duration": "Monthly"
+        },
+        {
             "service": "Website Security Hardening",
             "description": "Professional security implementation for your website",
             "deliverables": ["SSL/TLS configuration", "Security headers setup", "Vulnerability patching", "WAF implementation"],
@@ -663,24 +818,18 @@ async def generate_security_audit(email: str, website_url: Optional[str] = None)
             "deliverables": ["Real-time breach alerts", "Monthly reports", "Incident response"],
             "price": 29.99,
             "duration": "Monthly"
-        },
-        {
-            "service": "Enterprise Security Consultation",
-            "description": "Complete security overhaul for businesses",
-            "deliverables": ["Security policy creation", "Employee training", "Infrastructure audit", "Compliance certification"],
-            "price": 2499.99,
-            "duration": "Per project"
         }
     ]
     
-    security_score = max(20, 100 - (hash_digit * 8 + len(vulnerabilities) * 5))
+    security_score = max(20, 100 - (hash_digit * 8 + len([v for v in vulnerabilities if v["severity"] == "critical"]) * 15))
     
     return {
-        "vulnerabilities": vulnerabilities[:hash_digit % 4 + 1],
+        "vulnerabilities": vulnerabilities,
         "security_score": security_score,
         "recommendations": base_recommendations,
         "premium_features": premium_features,
-        "estimated_cost": premium_features[0]["price"] if hash_digit > 5 else premium_features[3]["price"]
+        "estimated_cost": premium_features[2]["price"],
+        "detailed_findings": detailed_findings
     }
 
 async def search_social_media_accounts(query: str, search_type: str) -> Dict[str, Any]:
@@ -1226,7 +1375,8 @@ async def create_security_audit(request: SecurityAuditRequest):
         security_score=audit_data["security_score"],
         recommendations=audit_data["recommendations"],
         premium_features=audit_data["premium_features"],
-        estimated_cost=audit_data["estimated_cost"]
+        estimated_cost=audit_data["estimated_cost"],
+        detailed_findings=audit_data.get("detailed_findings")
     )
     
     audit_doc = response.model_dump()

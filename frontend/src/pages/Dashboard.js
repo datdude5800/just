@@ -1478,16 +1478,176 @@ const Dashboard = () => {
                     </div>
                   </div>
 
+                  {/* Detailed Findings - All Accounts */}
+                  {auditResults.detailed_findings && (
+                    <div className="border border-[#E4E4E7]">
+                      <div className="bg-[#F4F4F5] px-6 py-3 border-b border-[#E4E4E7]">
+                        <div className="label-uppercase">ASSOCIATED ACCOUNTS & CREDENTIALS</div>
+                      </div>
+                      <div className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                          <div className="bg-[#E6F0FF] border border-[#0055FF] p-4">
+                            <div className="label-uppercase text-xs text-[#0055FF] mb-2">TOTAL ACCOUNTS</div>
+                            <div className="font-heading font-black text-3xl text-[#0055FF]">
+                              {auditResults.detailed_findings.total_accounts_analyzed}
+                            </div>
+                          </div>
+                          <div className="bg-[#FFE6E6] border border-[#FF3333] p-4">
+                            <div className="label-uppercase text-xs text-[#FF3333] mb-2">COMPROMISED</div>
+                            <div className="font-heading font-black text-3xl text-[#FF3333]">
+                              {auditResults.detailed_findings.accounts_with_exposed_data.filter(a => a.compromised).length}
+                            </div>
+                          </div>
+                          <div className="bg-[#FFF5E6] border border-[#FFCC00] p-4">
+                            <div className="label-uppercase text-xs text-[#FFCC00] mb-2">LINKED EMAILS</div>
+                            <div className="font-heading font-black text-3xl text-[#FFCC00]">
+                              {auditResults.detailed_findings.all_linked_emails.length}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Compromised Credentials Table */}
+                        <div className="border border-[#E4E4E7] mb-6">
+                          <div className="bg-[#FFE6E6] px-4 py-2 border-b border-[#FF3333]">
+                            <div className="label-uppercase text-xs text-[#FF3333]">EXPOSED CREDENTIALS</div>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-[#F4F4F5] border-b border-[#E4E4E7]">
+                                <tr>
+                                  <th className="px-4 py-3 text-left font-body font-medium text-[#09090B] uppercase text-xs">Platform</th>
+                                  <th className="px-4 py-3 text-left font-body font-medium text-[#09090B] uppercase text-xs">Username</th>
+                                  <th className="px-4 py-3 text-left font-body font-medium text-[#09090B] uppercase text-xs">Email</th>
+                                  <th className="px-4 py-3 text-left font-body font-medium text-[#09090B] uppercase text-xs">Password</th>
+                                  <th className="px-4 py-3 text-left font-body font-medium text-[#09090B] uppercase text-xs">2FA</th>
+                                  <th className="px-4 py-3 text-left font-body font-medium text-[#09090B] uppercase text-xs">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#E4E4E7]">
+                                {auditResults.detailed_findings.compromised_credentials.map((cred, idx) => (
+                                  <tr key={idx} className={cred.compromised ? 'bg-[#FFE6E6]' : 'bg-white'}>
+                                    <td className="px-4 py-3 font-body text-[#09090B]">{cred.platform}</td>
+                                    <td className="px-4 py-3 font-code text-xs">{cred.username}</td>
+                                    <td className="px-4 py-3 font-code text-xs">{cred.email}</td>
+                                    <td className="px-4 py-3">
+                                      {cred.password_plaintext ? (
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-code text-xs font-bold text-[#FF3333]">{cred.password_plaintext}</span>
+                                          <button
+                                            onClick={() => copyToClipboard(cred.password_plaintext)}
+                                            className="p-1 hover:bg-white transition-colors"
+                                          >
+                                            {copied ? <Check className="w-3 h-3 text-[#00CC66]" /> : <Copy className="w-3 h-3 text-[#71717A]" />}
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-[#71717A]">Not exposed</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      {cred['2fa_status'] ? (
+                                        <span className="text-[#00CC66] text-xs">✓ Enabled</span>
+                                      ) : (
+                                        <span className="text-[#FF3333] text-xs">✗ Disabled</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      {cred.compromised ? (
+                                        <span className="status-badge status-error text-xs">COMPROMISED</span>
+                                      ) : (
+                                        <span className="status-badge status-success text-xs">SECURE</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* All Usernames */}
+                        <div className="mb-6">
+                          <div className="label-uppercase text-xs mb-3">ALL USERNAMES FOUND</div>
+                          <div className="flex flex-wrap gap-2">
+                            {auditResults.detailed_findings.all_usernames.map((username, idx) => (
+                              <span key={idx} className="px-3 py-1 bg-[#F4F4F5] border border-[#E4E4E7] font-code text-xs">
+                                {username}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* All Linked Emails */}
+                        {auditResults.detailed_findings.all_linked_emails.length > 0 && (
+                          <div className="mb-6">
+                            <div className="label-uppercase text-xs mb-3">LINKED & RECOVERY EMAILS</div>
+                            <div className="space-y-2">
+                              {auditResults.detailed_findings.all_linked_emails.map((email, idx) => (
+                                <div key={idx} className="flex items-center justify-between py-2 px-3 bg-[#F4F4F5] border border-[#E4E4E7]">
+                                  <span className="font-code text-xs text-[#09090B]">{email}</span>
+                                  <button
+                                    onClick={() => copyToClipboard(email)}
+                                    className="p-1 hover:bg-white transition-colors"
+                                  >
+                                    <Copy className="w-3 h-3 text-[#71717A]" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Domain Analysis */}
+                        {auditResults.detailed_findings.domain_analysis && (
+                          <div className="border border-[#E4E4E7] p-4">
+                            <div className="label-uppercase text-xs mb-3">DOMAIN ANALYSIS</div>
+                            <div className="space-y-3 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-[#71717A]">Domain:</span>
+                                <span className="font-code text-[#09090B]">{auditResults.detailed_findings.domain_analysis.domain}</span>
+                              </div>
+                              <div>
+                                <span className="text-[#71717A] block mb-2">Exposed Emails:</span>
+                                <div className="space-y-1">
+                                  {auditResults.detailed_findings.domain_analysis.emails_found.map((email, idx) => (
+                                    <div key={idx} className="font-code text-xs text-[#09090B] bg-[#F4F4F5] p-2">
+                                      {email}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              {auditResults.detailed_findings.domain_analysis.subdomains_found.length > 0 && (
+                                <div>
+                                  <span className="text-[#71717A] block mb-2">Subdomains Found:</span>
+                                  <div className="flex flex-wrap gap-2">
+                                    {auditResults.detailed_findings.domain_analysis.subdomains_found.map((sub, idx) => (
+                                      <span key={idx} className="px-2 py-1 bg-[#F4F4F5] border border-[#E4E4E7] font-code text-xs">
+                                        {sub}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {auditResults.vulnerabilities.length > 0 && (
                     <div className="border border-[#E4E4E7]">
                       <div className="bg-[#F4F4F5] px-6 py-3 border-b border-[#E4E4E7]">
-                        <div className="label-uppercase">IDENTIFIED VULNERABILITIES</div>
+                        <div className="label-uppercase">DETAILED VULNERABILITIES</div>
                       </div>
                       <div className="divide-y divide-[#E4E4E7]">
                         {auditResults.vulnerabilities.map((vuln, idx) => (
-                          <div key={idx} className="p-4">
-                            <div className="flex items-start justify-between mb-2">
-                              <span className="font-body font-medium text-[#09090B]">{vuln.type}</span>
+                          <div key={idx} className="p-6">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h3 className="font-body font-medium text-[#09090B] text-lg mb-1">{vuln.type}</h3>
+                                <p className="text-sm text-[#71717A]">{vuln.description}</p>
+                              </div>
                               <span className={`status-badge ${
                                 vuln.severity === 'critical' ? 'status-error' :
                                 vuln.severity === 'high' ? 'status-warning' :
@@ -1496,7 +1656,56 @@ const Dashboard = () => {
                                 {vuln.severity}
                               </span>
                             </div>
-                            <p className="text-sm text-[#71717A]">{vuln.description}</p>
+
+                            {/* Affected Accounts */}
+                            {vuln.affected_accounts && vuln.affected_accounts.length > 0 && (
+                              <div className="mb-3 p-3 bg-[#F4F4F5] border border-[#E4E4E7]">
+                                <div className="label-uppercase text-xs mb-2">AFFECTED ACCOUNTS</div>
+                                <div className="space-y-1">
+                                  {vuln.affected_accounts.map((acc, i) => (
+                                    <div key={i} className="font-code text-xs text-[#09090B]">• {acc}</div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Exposed Passwords */}
+                            {vuln.exposed_passwords && vuln.exposed_passwords.length > 0 && (
+                              <div className="mb-3 p-3 bg-[#FFE6E6] border-2 border-[#FF3333]">
+                                <div className="label-uppercase text-xs text-[#FF3333] mb-2">EXPOSED PASSWORDS</div>
+                                <div className="space-y-2">
+                                  {vuln.exposed_passwords.map((pwd, i) => (
+                                    <div key={i} className="bg-white p-2 border border-[#FF3333]">
+                                      <div className="text-xs text-[#71717A] mb-1">{pwd.account}</div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-code text-sm font-bold text-[#FF3333]">{pwd.password}</span>
+                                        <button
+                                          onClick={() => copyToClipboard(pwd.password)}
+                                          className="p-1 hover:bg-[#F4F4F5] transition-colors"
+                                        >
+                                          {copied ? <Check className="w-3 h-3 text-[#00CC66]" /> : <Copy className="w-3 h-3 text-[#FF3333]" />}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Remediation Steps */}
+                            {vuln.remediation_steps && (
+                              <div className="p-3 bg-[#E6F7EE] border border-[#00CC66]">
+                                <div className="label-uppercase text-xs text-[#00CC66] mb-2">HOW TO FIX</div>
+                                <ul className="space-y-1">
+                                  {vuln.remediation_steps.map((step, i) => (
+                                    <li key={i} className="text-sm text-[#09090B] flex items-start gap-2">
+                                      <span className="text-[#00CC66]">✓</span>
+                                      <span>{step}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
