@@ -95,17 +95,22 @@ class SessionExportRequest(BaseModel):
     export_format: str = "json"
 
 class BreachDetailRequest(BaseModel):
-    email: str
+    query: str
+    search_type: str = "email"
     reveal_sensitive: bool = False
 
 class BreachDetailResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    email: str
+    query: str
+    search_type: str
     total_records: int
     exposed_data: Dict[str, Any]
     compromised_passwords: List[Dict[str, Any]]
     phone_records: List[str]
     personal_info: Dict[str, Any]
+    ip_addresses: List[Dict[str, str]]
+    all_emails: List[str]
+    all_usernames: List[str]
     severity: str
     requires_premium: bool
 
@@ -580,6 +585,179 @@ async def get_detailed_breach_data(email: str) -> Dict[str, Any]:
         "personal_info": personal_info,
         "credit_cards_exposed": hash_digit % 2,
         "ssn_exposed": hash_digit > 8,
+        "note": "⚠️ SIMULATED DATA FOR DEMONSTRATION - Not real breach data"
+    }
+
+async def get_comprehensive_breach_data(query: str, search_type: str) -> Dict[str, Any]:
+    """Get comprehensive breach data by any identifier (SIMULATED DATA ONLY)"""
+    query_hash = hashlib.md5(query.lower().encode()).hexdigest()
+    hash_digit = int(query_hash[0], 16)
+    
+    # Generate base username and email
+    if search_type == "email":
+        username_base = query.split('@')[0]
+        primary_email = query
+    elif search_type == "phone":
+        username_base = f"user{query.replace('+', '').replace('-', '')[-4:]}"
+        primary_email = f"{username_base}@example.com"
+    elif search_type == "name":
+        username_base = query.lower().replace(' ', '_')
+        primary_email = f"{username_base}@example.com"
+    else:  # username
+        username_base = query
+        primary_email = f"{query}@example.com"
+    
+    # All associated emails
+    all_emails = [
+        primary_email,
+        f"{username_base}@gmail.com",
+        f"{username_base}@yahoo.com",
+        f"{username_base}_work@company.com",
+        f"{username_base}.personal@outlook.com",
+        f"{username_base}123@hotmail.com"
+    ]
+    
+    # All usernames used
+    all_usernames = [
+        username_base,
+        f"{username_base}123",
+        f"{username_base}_2023",
+        f"{username_base}_{hash_digit}",
+        f"user_{username_base}"
+    ]
+    
+    # IP addresses from different breaches
+    ip_addresses = [
+        {
+            "ip": f"192.168.{hash_digit}.{(hash_digit * 17) % 256}",
+            "location": f"New York, US",
+            "breach_source": "LinkedIn 2021",
+            "last_seen": "2021-06-22"
+        },
+        {
+            "ip": f"10.0.{hash_digit}.{(hash_digit * 23) % 256}",
+            "location": f"San Francisco, US",
+            "breach_source": "Facebook 2019",
+            "last_seen": "2019-04-03"
+        },
+        {
+            "ip": f"172.16.{hash_digit}.{(hash_digit * 31) % 256}",
+            "location": f"London, UK",
+            "breach_source": "Twitter 2023",
+            "last_seen": "2023-01-15"
+        },
+        {
+            "ip": f"{hash_digit + 100}.{hash_digit * 2}.{hash_digit * 3}.{(hash_digit * 41) % 256}",
+            "location": f"Berlin, Germany",
+            "breach_source": "Adobe 2013",
+            "last_seen": "2013-10-04"
+        },
+        {
+            "ip": f"45.{hash_digit}.{(hash_digit * 7) % 256}.{(hash_digit * 11) % 256}",
+            "location": f"Tokyo, Japan",
+            "breach_source": "MySpace 2008",
+            "last_seen": "2008-06-11"
+        }
+    ]
+    
+    # Comprehensive password list from all breaches
+    compromised_passwords = [
+        {
+            "source": "LinkedIn 2021",
+            "password_hash": "5f4dcc3b5aa765d61d8327deb882cf99",
+            "cracked": True,
+            "plaintext": "password123",
+            "first_seen": "2021-06-22",
+            "breach_size": "700M records"
+        },
+        {
+            "source": "Facebook 2019",
+            "password_hash": "e10adc3949ba59abbe56e057f20f883e",
+            "cracked": True,
+            "plaintext": "123456",
+            "first_seen": "2019-04-03",
+            "breach_size": "533M records"
+        },
+        {
+            "source": "Adobe 2013",
+            "password_hash": "25d55ad283aa400af464c76d713c07ad",
+            "cracked": True,
+            "plaintext": "12345678",
+            "first_seen": "2013-10-04",
+            "breach_size": "153M records"
+        },
+        {
+            "source": "Twitter 2023",
+            "password_hash": "827ccb0eea8a706c4c34a16891f84e7b",
+            "cracked": True,
+            "plaintext": "12345",
+            "first_seen": "2023-01-01",
+            "breach_size": "200M records"
+        },
+        {
+            "source": "MySpace 2008",
+            "password_hash": "fcea920f7412b5da7be0cf42b8c93759",
+            "cracked": True,
+            "plaintext": "iloveyou",
+            "first_seen": "2008-06-11",
+            "breach_size": "360M records"
+        },
+        {
+            "source": "Dropbox 2012",
+            "password_hash": "098f6bcd4621d373cade4e832627b4f6",
+            "cracked": True,
+            "plaintext": "test",
+            "first_seen": "2012-07-13",
+            "breach_size": "68M records"
+        }
+    ]
+    
+    # Phone numbers
+    phone_records = [
+        f"+1-555-{hash_digit:03d}-{(hash_digit * 137) % 10000:04d}",
+        f"+1-555-{(hash_digit + 1) % 1000:03d}-{(hash_digit * 251) % 10000:04d}",
+        f"+44-20-{hash_digit:04d}-{(hash_digit * 173) % 10000:04d}",
+        f"+49-30-{hash_digit:04d}-{(hash_digit * 197) % 10000:04d}"
+    ]
+    
+    # Personal information
+    personal_info = {
+        "full_name": f"John Doe {hash_digit}",
+        "first_name": "John",
+        "last_name": f"Doe{hash_digit}",
+        "addresses": [
+            f"{hash_digit * 100} Main Street, City {hash_digit}, ST {hash_digit:05d}",
+            f"Apt {hash_digit}, {hash_digit * 50} Oak Avenue, Town {hash_digit + 1}, ST {hash_digit:05d}"
+        ],
+        "date_of_birth": f"19{70 + (hash_digit % 30)}-{1 + (hash_digit % 12):02d}-{1 + (hash_digit % 28):02d}",
+        "age": 54 - hash_digit,
+        "gender": "Male" if hash_digit % 2 == 0 else "Female",
+        "social_profiles": {
+            "twitter": f"@{username_base}",
+            "linkedin": f"linkedin.com/in/{username_base}",
+            "facebook": f"facebook.com/{username_base}",
+            "instagram": f"@{username_base}_ig",
+            "github": f"github.com/{username_base}"
+        },
+        "employment": {
+            "company": f"TechCorp {hash_digit}",
+            "position": "Software Engineer",
+            "work_email": f"{username_base}@techcorp{hash_digit}.com"
+        }
+    }
+    
+    return {
+        "total_records": len(compromised_passwords),
+        "all_emails": all_emails[:hash_digit % 5 + 2],
+        "all_usernames": all_usernames[:hash_digit % 4 + 2],
+        "compromised_passwords": compromised_passwords[:hash_digit % 6 + 3],
+        "phone_records": phone_records[:hash_digit % 3 + 2],
+        "ip_addresses": ip_addresses[:hash_digit % 5 + 2],
+        "personal_info": personal_info,
+        "credit_cards_exposed": hash_digit % 3,
+        "ssn_exposed": hash_digit > 8,
+        "driver_license_exposed": hash_digit > 6,
+        "passport_exposed": hash_digit > 10,
         "note": "⚠️ SIMULATED DATA FOR DEMONSTRATION - Not real breach data"
     }
 
@@ -1320,10 +1498,15 @@ async def export_session(request: SessionExportRequest):
 @api_router.post("/breach/detailed", response_model=BreachDetailResponse)
 async def get_breach_details(request: BreachDetailRequest):
     """Get detailed breach information including sensitive data (ETHICAL USE ONLY)"""
-    email = request.email.strip().lower()
+    query = request.query.strip().lower()
+    search_type = request.search_type.lower()
     
-    if not validate_email(email):
+    # Validation based on search type
+    if search_type == "email" and not validate_email(query):
         raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    if search_type in ["username", "name"] and len(query) < 2:
+        raise HTTPException(status_code=400, detail=f"{search_type} must be at least 2 characters")
     
     if not request.reveal_sensitive:
         raise HTTPException(
@@ -1331,21 +1514,28 @@ async def get_breach_details(request: BreachDetailRequest):
             detail="You must acknowledge ethical use and provide consent to view sensitive data"
         )
     
-    breach_data = await get_detailed_breach_data(email)
+    breach_data = await get_comprehensive_breach_data(query, search_type)
     
     response = BreachDetailResponse(
-        email=email,
+        query=query,
+        search_type=search_type,
         total_records=breach_data["total_records"],
         exposed_data={
             "passwords": len(breach_data["compromised_passwords"]),
             "phones": len(breach_data["phone_records"]),
+            "emails": len(breach_data["all_emails"]),
+            "usernames": len(breach_data["all_usernames"]),
+            "ips": len(breach_data["ip_addresses"]),
             "credit_cards": breach_data["credit_cards_exposed"],
             "ssn": breach_data["ssn_exposed"]
         },
         compromised_passwords=breach_data["compromised_passwords"],
         phone_records=breach_data["phone_records"],
+        ip_addresses=breach_data["ip_addresses"],
+        all_emails=breach_data["all_emails"],
+        all_usernames=breach_data["all_usernames"],
         personal_info=breach_data["personal_info"],
-        severity="critical" if breach_data["total_records"] > 2 else "high",
+        severity="critical" if breach_data["total_records"] > 4 else "high",
         requires_premium=True
     )
     

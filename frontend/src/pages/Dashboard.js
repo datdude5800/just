@@ -50,6 +50,7 @@ const Dashboard = () => {
 
   // Breach details state
   const [detailEmail, setDetailEmail] = useState('');
+  const [detailSearchType, setDetailSearchType] = useState('email');
   const [consentGiven, setConsentGiven] = useState(false);
   const [breachDetails, setBreachDetails] = useState(null);
 
@@ -267,7 +268,7 @@ const Dashboard = () => {
 
   const getBreachDetails = async () => {
     if (!detailEmail) {
-      toast.error('Please enter an email address');
+      toast.error('Please enter a search query');
       return;
     }
 
@@ -279,7 +280,8 @@ const Dashboard = () => {
     setLoading(true);
     try {
       const response = await axios.post(`${API}/breach/detailed`, {
-        email: detailEmail,
+        query: detailEmail,
+        search_type: detailSearchType,
         reveal_sensitive: consentGiven
       });
       setBreachDetails(response.data);
@@ -291,7 +293,7 @@ const Dashboard = () => {
         details: { total_records: response.data.total_records }
       });
       
-      toast.warning(`${response.data.total_records} breach records found with sensitive data`);
+      toast.warning(`${response.data.total_records} breach records found with comprehensive data`);
     } catch (error) {
       toast.error('Breach details failed: ' + (error.response?.data?.detail || error.message));
     } finally {
@@ -1218,18 +1220,40 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-[#E4E4E7]">
             {/* Input Panel */}
             <div className="lg:col-span-5 bg-white p-8">
-              <div className="label-uppercase mb-6">DETAILED BREACH ANALYSIS</div>
+              <div className="label-uppercase mb-6">COMPREHENSIVE BREACH ANALYSIS</div>
               
               <div className="mb-6">
                 <label className="block font-body font-medium text-[#09090B] mb-2">
-                  Email Address
+                  Search Type
+                </label>
+                <select
+                  data-testid="detail-search-type"
+                  value={detailSearchType}
+                  onChange={(e) => setDetailSearchType(e.target.value)}
+                  className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                >
+                  <option value="email">Email Address</option>
+                  <option value="username">Username</option>
+                  <option value="phone">Phone Number</option>
+                  <option value="name">First/Last Name</option>
+                </select>
+              </div>
+
+              <div className="mb-6">
+                <label className="block font-body font-medium text-[#09090B] mb-2">
+                  Search Query
                 </label>
                 <input
                   data-testid="detail-email-input"
-                  type="email"
+                  type="text"
                   value={detailEmail}
                   onChange={(e) => setDetailEmail(e.target.value)}
-                  placeholder="user@example.com"
+                  placeholder={
+                    detailSearchType === 'email' ? 'user@example.com' :
+                    detailSearchType === 'phone' ? '+1-555-123-4567' :
+                    detailSearchType === 'name' ? 'John Doe' :
+                    'username'
+                  }
                   className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
                 />
               </div>
@@ -1242,12 +1266,12 @@ const Dashboard = () => {
                       CRITICAL WARNING
                     </div>
                     <div className="text-sm text-[#09090B] font-body mb-3">
-                      This feature reveals SENSITIVE DATA including passwords, phone numbers, and personal information from data breaches.
+                      This reveals ALL COMPREHENSIVE DATA including: passwords, IP addresses, phone numbers, emails, usernames, and personal information.
                     </div>
                     <ul className="text-xs text-[#09090B] font-body space-y-1 mb-4">
-                      <li>• Only use for accounts you own or have authorization to investigate</li>
+                      <li>• Only search for data you own or are authorized to investigate</li>
                       <li>• Data is for security assessment purposes ONLY</li>
-                      <li>• Unauthorized access or misuse is illegal</li>
+                      <li>• Unauthorized access or misuse is ILLEGAL</li>
                       <li>• All queries are logged for legal compliance</li>
                     </ul>
                   </div>
@@ -1262,7 +1286,7 @@ const Dashboard = () => {
                     className="w-5 h-5 border-2 border-[#FF3333] accent-[#FF3333] mt-0.5"
                   />
                   <span className="text-sm text-[#09090B] font-body">
-                    I confirm I have legal authorization to view this data and will use it ethically for security purposes only
+                    I confirm I have legal authorization to view this comprehensive data and will use it ethically for security purposes only
                   </span>
                 </label>
               </div>
@@ -1281,19 +1305,19 @@ const Dashboard = () => {
                 ) : (
                   <>
                     <Eye className="w-5 h-5" />
-                    REVEAL BREACH DATA
+                    REVEAL ALL DATA
                   </>
                 )}
               </button>
             </div>
 
             {/* Results Panel */}
-            <div className="lg:col-span-7 bg-white p-8">
-              <div className="label-uppercase mb-6">EXPOSED DATA</div>
+            <div className="lg:col-span-7 bg-white p-8 max-h-screen overflow-y-auto">
+              <div className="label-uppercase mb-6">COMPREHENSIVE EXPOSED DATA</div>
               
               {!breachDetails && (
                 <div className="flex items-center justify-center h-64 text-[#71717A] font-body text-center px-8">
-                  Acknowledge ethical use terms and enter email to view detailed breach data.
+                  Select search type, acknowledge ethical use terms, and enter query to view all breach data.
                 </div>
               )}
 
@@ -1307,78 +1331,111 @@ const Dashboard = () => {
                         <div className="font-heading font-black text-2xl text-[#09090B]">
                           {breachDetails.total_records} BREACH RECORDS
                         </div>
-                        <div className="font-body text-sm text-[#71717A] uppercase">
-                          Severity: {breachDetails.severity}
+                        <div className="font-body text-sm text-[#71717A]">
+                          Searched by: {breachDetails.search_type} • Query: {breachDetails.query}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Exposed Data Summary */}
-                  <div className="grid grid-cols-2 gap-px bg-[#E4E4E7]">
+                  {/* Exposed Data Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-[#E4E4E7]">
                     <div className="bg-white p-4">
-                      <div className="label-uppercase mb-2">PASSWORDS</div>
-                      <div className="font-heading font-black text-3xl text-[#FF3333]">
+                      <div className="label-uppercase text-xs mb-2">PASSWORDS</div>
+                      <div className="font-heading font-black text-2xl text-[#FF3333]">
                         {breachDetails.exposed_data.passwords}
                       </div>
                     </div>
                     <div className="bg-white p-4">
-                      <div className="label-uppercase mb-2">PHONE NUMBERS</div>
-                      <div className="font-heading font-black text-3xl text-[#FFCC00]">
+                      <div className="label-uppercase text-xs mb-2">IP ADDRESSES</div>
+                      <div className="font-heading font-black text-2xl text-[#FFCC00]">
+                        {breachDetails.exposed_data.ips}
+                      </div>
+                    </div>
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase text-xs mb-2">EMAILS</div>
+                      <div className="font-heading font-black text-2xl text-[#0055FF]">
+                        {breachDetails.exposed_data.emails}
+                      </div>
+                    </div>
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase text-xs mb-2">PHONES</div>
+                      <div className="font-heading font-black text-2xl text-[#00CC66]">
                         {breachDetails.exposed_data.phones}
+                      </div>
+                    </div>
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase text-xs mb-2">USERNAMES</div>
+                      <div className="font-heading font-black text-2xl text-[#09090B]">
+                        {breachDetails.exposed_data.usernames}
+                      </div>
+                    </div>
+                    <div className="bg-white p-4">
+                      <div className="label-uppercase text-xs mb-2">SEVERITY</div>
+                      <div className="font-heading font-black text-xl text-[#FF3333] uppercase">
+                        {breachDetails.severity}
                       </div>
                     </div>
                   </div>
 
-                  {/* Compromised Passwords */}
+                  {/* All Passwords */}
                   {breachDetails.compromised_passwords && breachDetails.compromised_passwords.length > 0 && (
-                    <div className="border border-[#E4E4E7]">
+                    <div className="border-2 border-[#FF3333]">
                       <div className="bg-[#FFE6E6] px-6 py-3 border-b border-[#FF3333]">
-                        <div className="label-uppercase text-[#FF3333]">COMPROMISED PASSWORDS</div>
+                        <div className="label-uppercase text-[#FF3333]">ALL COMPROMISED PASSWORDS</div>
                       </div>
-                      <div className="divide-y divide-[#E4E4E7]">
+                      <div className="divide-y divide-[#FF3333]">
                         {breachDetails.compromised_passwords.map((pwd, idx) => (
-                          <div key={idx} className="p-4">
+                          <div key={idx} className="p-4 bg-white">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="font-body font-medium text-[#09090B]">{pwd.source}</span>
-                              <span className={`status-badge ${pwd.cracked ? 'status-error' : 'status-warning'}`}>
-                                {pwd.cracked ? 'CRACKED' : 'ENCRYPTED'}
-                              </span>
+                              <div>
+                                <span className="font-body font-medium text-[#09090B]">{pwd.source}</span>
+                                <span className="text-xs text-[#71717A] ml-2">• {pwd.breach_size}</span>
+                              </div>
+                              <span className="status-badge status-error text-xs">CRACKED</span>
                             </div>
                             <div className="hash-display mb-2 text-xs">
                               Hash: {pwd.password_hash}
                             </div>
-                            {pwd.cracked && pwd.plaintext && (
-                              <div className="bg-[#FFE6E6] border border-[#FF3333] p-3 flex items-center justify-between">
-                                <div>
+                            <div className="bg-[#FFE6E6] border-2 border-[#FF3333] p-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
                                   <div className="text-xs label-uppercase text-[#FF3333] mb-1">PLAINTEXT PASSWORD</div>
-                                  <div className="font-code font-bold text-[#09090B]">{pwd.plaintext}</div>
+                                  <div className="font-code font-bold text-xl text-[#FF3333]">{pwd.plaintext}</div>
+                                  <div className="text-xs text-[#71717A] mt-1">First seen: {pwd.first_seen}</div>
                                 </div>
                                 <button
                                   onClick={() => copyToClipboard(pwd.plaintext)}
-                                  className="p-2 hover:bg-white transition-colors"
+                                  className="p-2 hover:bg-white transition-colors border border-[#FF3333]"
                                 >
-                                  {copied ? <Check className="w-4 h-4 text-[#00CC66]" /> : <Copy className="w-4 h-4 text-[#FF3333]" />}
+                                  {copied ? <Check className="w-5 h-5 text-[#00CC66]" /> : <Copy className="w-5 h-5 text-[#FF3333]" />}
                                 </button>
                               </div>
-                            )}
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Phone Records */}
-                  {breachDetails.phone_records && breachDetails.phone_records.length > 0 && (
-                    <div className="border border-[#E4E4E7] p-6">
-                      <div className="label-uppercase mb-3">EXPOSED PHONE NUMBERS</div>
-                      <div className="space-y-2">
-                        {breachDetails.phone_records.map((phone, idx) => (
-                          <div key={idx} className="flex items-center justify-between py-2 border-b border-[#E4E4E7] last:border-0">
-                            <span className="font-code text-[#09090B]">{phone}</span>
+                  {/* All IP Addresses */}
+                  {breachDetails.ip_addresses && breachDetails.ip_addresses.length > 0 && (
+                    <div className="border border-[#E4E4E7]">
+                      <div className="bg-[#FFF5E6] px-6 py-3 border-b border-[#FFCC00]">
+                        <div className="label-uppercase text-[#FFCC00]">EXPOSED IP ADDRESSES</div>
+                      </div>
+                      <div className="divide-y divide-[#E4E4E7]">
+                        {breachDetails.ip_addresses.map((ip, idx) => (
+                          <div key={idx} className="p-4 flex items-center justify-between bg-white">
+                            <div className="flex-1">
+                              <div className="font-code text-lg font-bold text-[#09090B] mb-1">{ip.ip}</div>
+                              <div className="text-sm text-[#71717A]">
+                                {ip.location} • {ip.breach_source} • Last seen: {ip.last_seen}
+                              </div>
+                            </div>
                             <button
-                              onClick={() => copyToClipboard(phone)}
-                              className="p-1 hover:bg-[#F4F4F5] transition-colors"
+                              onClick={() => copyToClipboard(ip.ip)}
+                              className="p-2 hover:bg-[#F4F4F5] transition-colors"
                             >
                               <Copy className="w-4 h-4 text-[#71717A]" />
                             </button>
@@ -1388,24 +1445,120 @@ const Dashboard = () => {
                     </div>
                   )}
 
+                  {/* All Emails */}
+                  {breachDetails.all_emails && breachDetails.all_emails.length > 0 && (
+                    <div className="border border-[#E4E4E7]">
+                      <div className="bg-[#E6F0FF] px-6 py-3 border-b border-[#0055FF]">
+                        <div className="label-uppercase text-[#0055FF]">ALL ASSOCIATED EMAILS ({breachDetails.all_emails.length})</div>
+                      </div>
+                      <div className="p-4 bg-white">
+                        <div className="grid grid-cols-1 gap-2">
+                          {breachDetails.all_emails.map((email, idx) => (
+                            <div key={idx} className="flex items-center justify-between py-2 px-3 bg-[#F4F4F5] border border-[#E4E4E7]">
+                              <span className="font-code text-sm text-[#09090B]">{email}</span>
+                              <button
+                                onClick={() => copyToClipboard(email)}
+                                className="p-1 hover:bg-white transition-colors"
+                              >
+                                <Copy className="w-4 h-4 text-[#71717A]" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All Usernames */}
+                  {breachDetails.all_usernames && breachDetails.all_usernames.length > 0 && (
+                    <div className="border border-[#E4E4E7] p-6 bg-white">
+                      <div className="label-uppercase mb-3">ALL USERNAMES FOUND ({breachDetails.all_usernames.length})</div>
+                      <div className="flex flex-wrap gap-2">
+                        {breachDetails.all_usernames.map((username, idx) => (
+                          <span
+                            key={idx}
+                            className="px-3 py-2 bg-[#F4F4F5] border border-[#E4E4E7] font-code text-sm hover:bg-white cursor-pointer"
+                            onClick={() => copyToClipboard(username)}
+                          >
+                            {username}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Phone Records */}
+                  {breachDetails.phone_records && breachDetails.phone_records.length > 0 && (
+                    <div className="border border-[#E4E4E7]">
+                      <div className="bg-[#E6F7EE] px-6 py-3 border-b border-[#00CC66]">
+                        <div className="label-uppercase text-[#00CC66]">PHONE NUMBERS</div>
+                      </div>
+                      <div className="p-4 bg-white">
+                        <div className="space-y-2">
+                          {breachDetails.phone_records.map((phone, idx) => (
+                            <div key={idx} className="flex items-center justify-between py-2 px-3 bg-[#F4F4F5] border border-[#E4E4E7]">
+                              <span className="font-code text-sm text-[#09090B]">{phone}</span>
+                              <button
+                                onClick={() => copyToClipboard(phone)}
+                                className="p-1 hover:bg-white transition-colors"
+                              >
+                                <Copy className="w-4 h-4 text-[#71717A]" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Personal Info */}
                   {breachDetails.personal_info && (
-                    <div className="border border-[#E4E4E7] p-6">
-                      <div className="label-uppercase mb-3">PERSONAL INFORMATION</div>
-                      <div className="space-y-3 text-sm">
+                    <div className="border border-[#E4E4E7] p-6 bg-white">
+                      <div className="label-uppercase mb-4">PERSONAL INFORMATION</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                         {breachDetails.personal_info.full_name && (
-                          <div className="flex justify-between">
-                            <span className="text-[#71717A]">Name:</span>
-                            <span className="font-body text-[#09090B]">{breachDetails.personal_info.full_name}</span>
+                          <div className="flex justify-between border-b border-[#E4E4E7] pb-2">
+                            <span className="text-[#71717A]">Full Name:</span>
+                            <span className="font-body text-[#09090B] font-medium">{breachDetails.personal_info.full_name}</span>
                           </div>
                         )}
                         {breachDetails.personal_info.date_of_birth && (
-                          <div className="flex justify-between">
+                          <div className="flex justify-between border-b border-[#E4E4E7] pb-2">
                             <span className="text-[#71717A]">DOB:</span>
                             <span className="font-body text-[#09090B]">{breachDetails.personal_info.date_of_birth}</span>
                           </div>
                         )}
+                        {breachDetails.personal_info.age && (
+                          <div className="flex justify-between border-b border-[#E4E4E7] pb-2">
+                            <span className="text-[#71717A]">Age:</span>
+                            <span className="font-body text-[#09090B]">{breachDetails.personal_info.age}</span>
+                          </div>
+                        )}
+                        {breachDetails.personal_info.gender && (
+                          <div className="flex justify-between border-b border-[#E4E4E7] pb-2">
+                            <span className="text-[#71717A]">Gender:</span>
+                            <span className="font-body text-[#09090B]">{breachDetails.personal_info.gender}</span>
+                          </div>
+                        )}
                       </div>
+                      {breachDetails.personal_info.addresses && (
+                        <div className="mt-4">
+                          <div className="text-xs label-uppercase text-[#71717A] mb-2">ADDRESSES</div>
+                          {breachDetails.personal_info.addresses.map((addr, idx) => (
+                            <div key={idx} className="text-sm text-[#09090B] py-1">{addr}</div>
+                          ))}
+                        </div>
+                      )}
+                      {breachDetails.personal_info.employment && (
+                        <div className="mt-4 p-3 bg-[#F4F4F5] border border-[#E4E4E7]">
+                          <div className="text-xs label-uppercase text-[#71717A] mb-2">EMPLOYMENT</div>
+                          <div className="text-sm">
+                            <div><strong>Company:</strong> {breachDetails.personal_info.employment.company}</div>
+                            <div><strong>Position:</strong> {breachDetails.personal_info.employment.position}</div>
+                            <div><strong>Work Email:</strong> {breachDetails.personal_info.employment.work_email}</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1413,10 +1566,10 @@ const Dashboard = () => {
                     <div className="bg-[#0055FF] text-white p-6">
                       <div className="flex items-center gap-3 mb-3">
                         <CreditCard className="w-6 h-6" />
-                        <div className="font-heading font-black text-xl">UPGRADE FOR FULL REPORT</div>
+                        <div className="font-heading font-black text-xl">PROFESSIONAL REMEDIATION SERVICES</div>
                       </div>
                       <p className="text-white/90 mb-4 text-sm">
-                        Get complete breach analysis with remediation steps and ongoing monitoring.
+                        Get professional help securing all compromised accounts and protecting your identity.
                       </p>
                       <button
                         onClick={() => setActiveTab('security')}
