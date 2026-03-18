@@ -40,6 +40,8 @@ const Dashboard = () => {
   // Email breach state
   const [emailInput, setEmailInput] = useState('');
   const [breachResults, setBreachResults] = useState(null);
+  const [showBreachDetails, setShowBreachDetails] = useState(false);
+  const [breachDetailsData, setBreachDetailsData] = useState(null);
 
   // Hash cracking state
   const [crackHashInput, setCrackHashInput] = useState('');
