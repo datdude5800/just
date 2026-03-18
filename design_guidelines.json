@@ -1,0 +1,164 @@
+{
+  "identity": {
+    "persona": "E1: The Anti-AI Designer",
+    "mission": "Create a 'Swiss Security Lab' aesthetic. Clinical, precise, and authoritative. Avoid generic SaaS 'friendly' vibes. This is a tool for professionals.",
+    "core_principles": [
+      "Fusion: Swiss International Style x Cyberpunk Light Mode",
+      "Emotion: Clinical Precision & Safety",
+      "Content: Data is the art. No decorations.",
+      "Negative Space: Massive padding, stark white voids.",
+      "Contrast: Black text on White background. No greys."
+    ]
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Chivo, sans-serif",
+      "body": "IBM Plex Sans, sans-serif",
+      "code": "JetBrains Mono, monospace"
+    },
+    "weights": {
+      "headings": "900 (Black) or 300 (Light) - High contrast",
+      "body": "400 (Regular), 500 (Medium)"
+    },
+    "google_fonts_import": "https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;900&family=IBM+Plex+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap",
+    "rules": [
+      "Headings > 32px MUST utilize tracking-tight (-0.02em)",
+      "Labels MUST be Uppercase + tracking-widest (0.2em) + text-xs",
+      "Code blocks MUST use JetBrains Mono"
+    ]
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "background": "#FFFFFF",
+      "surface": "#F4F4F5",
+      "surface_highlight": "#E4E4E7",
+      "foreground": "#09090B",
+      "muted": "#71717A",
+      "border": "#E4E4E7",
+      "primary": "#0055FF",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#F4F4F5",
+      "secondary_foreground": "#18181B",
+      "accent": "#FF3333",
+      "accent_foreground": "#FFFFFF",
+      "success": "#00CC66",
+      "warning": "#FFCC00",
+      "destructive": "#FF3333"
+    },
+    "usage_rules": [
+      "NO GRADIENTS. Solid colors only.",
+      "Background is ALWAYS Pure White (#FFFFFF) or extremely light grey (#F8F8F8).",
+      "Primary Blue (#0055FF) is for 'Execute', 'Scan', 'Active' states.",
+      "Swiss Red (#FF3333) is for 'Threats', 'Critical', 'Stop'.",
+      "Borders are visible and distinct (1px solid #E4E4E7)."
+    ]
+  },
+  "layout_strategies": {
+    "landing_page": {
+      "grid_mode": "Tetris Grid",
+      "columns": "grid-cols-1 md:grid-cols-12",
+      "gap": "gap-0 (use borders to separate)",
+      "features": [
+        "Hero: Col-span-12 md:col-span-8 row-span-2. Stark white with massive typography.",
+        "Stats: Col-span-6 md:col-span-4. Big numbers.",
+        "Visual: Col-span-6 md:col-span-4. Abstract geometric security imagery."
+      ]
+    },
+    "dashboard": {
+      "grid_mode": "High Density Grid",
+      "style": "Bento / Grid Borders",
+      "gap": "gap-px (1px gap for border effect)",
+      "background": "bg-border",
+      "children_bg": "bg-background",
+      "rules": [
+        "Create a 'Grid Border' look by setting container bg to grey and children bg to white with 1px gap.",
+        "Every widget is a rectangle. No rounded corners > sm.",
+        "Dense information. Use table layouts."
+      ]
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp or minimal radius (rounded-sm)",
+      "variants": {
+        "default": "bg-primary text-white hover:bg-primary/90 shadow-none border border-transparent",
+        "outline": "bg-transparent border border-input hover:bg-accent hover:text-accent-foreground",
+        "ghost": "hover:bg-secondary hover:text-secondary-foreground"
+      },
+      "animation": "active:scale-95 transition-transform"
+    },
+    "cards": {
+      "style": "Flat, Bordered, No Shadow",
+      "classes": "border border-border bg-card text-card-foreground rounded-none shadow-none"
+    },
+    "inputs": {
+      "style": "Technical / Brutalist",
+      "classes": "rounded-none border-border focus:ring-0 focus:border-primary bg-secondary/20"
+    },
+    "navigation": {
+      "style": "Sticky, Glassmorphism (Crystal)",
+      "classes": "border-b border-border/40 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60"
+    },
+    "data_display": {
+      "tables": "Dense, monospace font for data cells, uppercase headers.",
+      "charts": "Recharts with custom tooltip. Use palette colors (Blue, Red, Black)."
+    }
+  },
+  "visual_enhancers": {
+    "grid_lines": "Use 'bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]' for backgrounds.",
+    "micro_interactions": "Buttons click down (scale-95). Links underline expands from center.",
+    "glass_effect": "backdrop-blur-md bg-white/70 border border-white/20 shadow-sm"
+  },
+  "image_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1623305464543-b224da93e482?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "Abstract white security layers",
+      "description": "Use as a subtle texture or hero image with low opacity overlay."
+    },
+    "feature_monitoring": {
+      "url": "https://images.unsplash.com/photo-1495714096525-285e85481946?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "Security Monitoring",
+      "description": "For the 'Penetration Testing' feature card."
+    },
+    "feature_infrastructure": {
+      "url": "https://images.unsplash.com/photo-1680992044138-ce4864c2b962?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "Server Infrastructure",
+      "description": "For 'API Security' or infrastructure context."
+    },
+    "feature_network": {
+      "url": "https://images.unsplash.com/photo-1691435828932-911a7801adfb?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "Network Connections",
+      "description": "For 'Port Scanning' or network analysis features."
+    }
+  },
+  "accessibility": {
+    "testing_attribute": "data-testid",
+    "contrast_check": "Ensure all text is APCA compliant. Black on White is safe. Avoid light grey text.",
+    "motion": "Respect prefers-reduced-motion."
+  },
+  "universal_guidelines": {
+    "do_not_use": [
+      "Gradients on text",
+      "Rounded corners > 8px",
+      "Drop shadows (use borders instead)",
+      "Dark mode (force Light mode classes)",
+      "Generic 'Inter' font for headings"
+    ],
+    "must_do": [
+      "Add 'data-testid' to every interactive element",
+      "Use 'sonner' for toasts",
+      "Use 'lucide-react' for icons",
+      "Maintain 1px borders on everything to reinforce the grid",
+      "Use React JS (not TSX)"
+    ]
+  },
+  "instructions_to_main_agent": [
+    "1. INSTALL FONTS: Add the Google Fonts import to public/index.html or CSS.",
+    "2. CONFIGURE TAILWIND: Update tailwind.config.js to use the 'Swiss' palette variables defined above. Force 'light' theme.",
+    "3. COMPONENT OVERRIDES: When using Shadcn, strip the radius and shadows. Make them flat and bordered.",
+    "4. LAYOUT: Build the Dashboard using a dense grid. Do not use floating cards. Use a 'bento' style where borders separate content.",
+    "5. MOCK DATA: Use realistic security data (IPs, Hashes, Vulnerabilities) in the UI.",
+    "6. FILE EXTENSIONS: Use .js and .jsx. The project is NOT TypeScript."
+  ]
+}
