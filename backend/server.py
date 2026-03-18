@@ -638,9 +638,68 @@ async def get_detailed_breach_data(email: str) -> Dict[str, Any]:
     }
 
 async def get_comprehensive_breach_data(query: str, search_type: str) -> Dict[str, Any]:
-    """Get comprehensive breach data by any identifier (SIMULATED DATA ONLY)"""
-    query_hash = hashlib.md5(query.lower().encode()).hexdigest()
-    hash_digit = int(query_hash[0], 16)
+    """Get comprehensive breach data from real database"""
+    
+    # Query real data from database
+    search_query = {}
+    if search_type == "email":
+        search_query = {"$or": [{"email": query}, {"all_emails": query}]}
+    elif search_type == "username":
+        search_query = {"$or": [{"username": query}, {"all_usernames": query}]}
+    elif search_type == "phone":
+        search_query = {"$or": [{"phone": query}, {"phone_records": query}]}
+    elif search_type == "name":
+        search_query = {"personal_info.full_name": {"$regex": query, "$options": "i"}}
+    
+    breach_records = await db.breach_data.find(search_query, {"_id": 0}).to_list(100)
+    
+    if not breach_records:
+        return {
+            "total_records": 0,
+            "all_emails": [],
+            "all_usernames": [],
+            "compromised_passwords": [],
+            "phone_records": [],
+            "ip_addresses": [],
+            "personal_info": {},
+            "credit_cards_exposed": 0,
+            "ssn_exposed": False,
+            "driver_license_exposed": False,
+            "passport_exposed": False,
+            "note": "⚠️ No breach data found in database - Use admin panel to import real data"
+        }
+    
+    # Aggregate data from all records
+    all_emails = set()
+    all_usernames = set()
+    all_passwords = []
+    all_phones = set()
+    all_ips = []
+    personal_info = {}
+    
+    for record in breach_records:
+        all_emails.update(record.get("all_emails", []))
+        all_usernames.update(record.get("all_usernames", []))
+        all_passwords.extend(record.get("compromised_passwords", []))
+        all_phones.update(record.get("phone_records", []))
+        all_ips.extend(record.get("ip_addresses", []))
+        if not personal_info and record.get("personal_info"):
+            personal_info = record.get("personal_info", {})
+    
+    return {
+        "total_records": len(all_passwords),
+        "all_emails": list(all_emails),
+        "all_usernames": list(all_usernames),
+        "compromised_passwords": all_passwords,
+        "phone_records": list(all_phones),
+        "ip_addresses": all_ips,
+        "personal_info": personal_info,
+        "credit_cards_exposed": breach_records[0].get("credit_cards_exposed", 0),
+        "ssn_exposed": breach_records[0].get("ssn_exposed", False),
+        "driver_license_exposed": breach_records[0].get("driver_license_exposed", False),
+        "passport_exposed": breach_records[0].get("passport_exposed", False),
+        "note": "✓ Real data from breach database"
+    }
     
     # Generate base username and email
     if search_type == "email":
@@ -1970,6 +2029,85 @@ async def chatbot_message(request: ChatbotRequest):
         session_id=session_id,
         suggestions=response_data["suggestions"]
     )
+
+# ============= DATA IMPORT ENDPOINTS (ADMIN) =============
+@api_router.post("/admin/import/social")
+async def import_social_accounts(accounts: List[Dict[str, Any]], admin = Depends(verify_admin)):
+    """Import social media accounts data"""
+    from data_import import import_social_accounts_bulk
+    
+    result = await import_social_accounts_bulk(db, accounts)
+    return result
+
+@api_router.post("/admin/import/breach")
+async def import_breach_data(breach_data: List[Dict[str, Any]], admin = Depends(verify_admin)):
+    """Import breach data"""
+    from data_import import import_breach_data_bulk
+    
+    result = await import_breach_data_bulk(db, breach_data)
+    return result
+
+@api_router.post("/admin/import/sample")
+async def import_sample_data(admin = Depends(verify_admin)):
+    """Import sample/test data for demonstration"""
+    from data_import import create_sample_social_account, create_sample_breach_data
+    
+    # Create sample social accounts
+    sample_accounts = [
+        create_sample_social_account("Facebook", "johndoe", "john@example.com", "+1-555-123-4567"),
+        create_sample_social_account("Twitter", "johndoe", "john@example.com"),
+        create_sample_social_account("Instagram", "johndoe", "john@example.com"),
+        create_sample_social_account("LinkedIn", "johndoe", "john@example.com"),
+        create_sample_social_account("GitHub", "johndoe", "john@example.com"),
+    ]
+    
+    # Mark some as compromised for testing
+    sample_accounts[0]["compromised"] = True
+    sample_accounts[0]["breach_date"] = "2019-04-03"
+    sample_accounts[0]["password_found"] = True
+    sample_accounts[0]["password_plaintext"] = "password123"
+    sample_accounts[0]["password_hash"] = "5f4dcc3b5aa765d61d8327deb882cf99"
+    sample_accounts[0]["has_2fa"] = False
+    
+    sample_accounts[1]["compromised"] = True
+    sample_accounts[1]["breach_date"] = "2023-01-01"
+    
+    # Import accounts
+    await db.social_accounts.delete_many({"email": "john@example.com"})
+    await db.social_accounts.insert_many(sample_accounts)
+    
+    # Import breach data
+    breach_data = create_sample_breach_data()
+    await db.breach_data.delete_many({"email": "john.doe@example.com"})
+    await db.breach_data.insert_many(breach_data)
+    
+    return {
+        "message": "Sample data imported successfully",
+        "social_accounts": len(sample_accounts),
+        "breach_records": len(breach_data),
+        "test_query": "Try searching for: john@example.com or johndoe"
+    }
+
+@api_router.delete("/admin/data/clear")
+async def clear_test_data(admin = Depends(verify_admin)):
+    """Clear all test data"""
+    from data_import import clear_all_test_data
+    
+    result = await clear_all_test_data(db)
+    return result
+
+@api_router.get("/admin/data/stats")
+async def get_data_stats(admin = Depends(verify_admin)):
+    """Get database statistics"""
+    stats = {
+        "social_accounts": await db.social_accounts.count_documents({}),
+        "breach_data": await db.breach_data.count_documents({}),
+        "breach_details": await db.breach_details.count_documents({}),
+        "payments": await db.payments.count_documents({}),
+        "pentest_scans": await db.pentest_scans.count_documents({}),
+        "hash_cracks": await db.hash_cracks.count_documents({}),
+    }
+    return {"statistics": stats, "total_records": sum(stats.values())}
 
 app.include_router(api_router)
 

@@ -2007,8 +2007,19 @@ const Dashboard = () => {
                   <div className="divide-y divide-[#E4E4E7]">
                     {socialResults.accounts.map((account, idx) => (
                       <div key={idx} className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
+                        <div className="flex items-start gap-4 mb-4">
+                          {/* Profile Picture */}
+                          <div className="flex-shrink-0">
+                            <img
+                              src={account.profile_picture || 'https://via.placeholder.com/80'}
+                              alt={`${account.name} profile`}
+                              className="w-20 h-20 object-cover border-2 border-[#E4E4E7]"
+                              onError={(e) => { e.target.src = 'https://via.placeholder.com/80' }}
+                            />
+                          </div>
+
+                          {/* Account Info */}
+                          <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
                               <h3 className="font-heading font-black text-xl text-[#09090B]">
                                 {account.name}
@@ -2020,22 +2031,22 @@ const Dashboard = () => {
                                 <span className="status-badge status-warning">NO 2FA</span>
                               )}
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-[#71717A]">
+                            <div className="flex items-center gap-4 text-sm text-[#71717A] mb-3">
                               <span className="font-code">{account.username}</span>
                               <span>•</span>
                               <span>{account.followers} followers</span>
                               <span>•</span>
                               <span>Created: {account.created_date}</span>
                             </div>
+                            <a
+                              href={account.profile_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block btn-outline py-2 px-4 text-sm"
+                            >
+                              VIEW PROFILE
+                            </a>
                           </div>
-                          <a
-                            href={account.profile_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-outline py-2 px-4 text-sm"
-                          >
-                            VIEW PROFILE
-                          </a>
                         </div>
 
                         {account.compromised && (
