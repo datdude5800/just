@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Shield, Hash, Globe, Play, Loader2, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { Shield, Hash, Globe, Play, Loader2, ChevronDown, ChevronUp, Copy, Check, Mail, AlertTriangle } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -36,6 +36,10 @@ const Dashboard = () => {
   const [apiUrl, setApiUrl] = useState('');
   const [apiMethod, setApiMethod] = useState('GET');
   const [apiResults, setApiResults] = useState(null);
+
+  // Email breach state
+  const [emailInput, setEmailInput] = useState('');
+  const [breachResults, setBreachResults] = useState(null);
 
   const [expandedSections, setExpandedSections] = useState({});
 
@@ -131,6 +135,31 @@ const Dashboard = () => {
     }
   };
 
+  const checkEmailBreach = async () => {
+    if (!emailInput) {
+      toast.error('Please enter an email address');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API}/breach/check`, {
+        email: emailInput
+      });
+      setBreachResults(response.data);
+      
+      if (response.data.breaches_found > 0) {
+        toast.error(`${response.data.breaches_found} breaches found!`);
+      } else {
+        toast.success('No breaches detected');
+      }
+    } catch (error) {
+      toast.error('Breach check failed: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <Toaster position="top-right" richColors />
@@ -189,6 +218,20 @@ const Dashboard = () => {
             <div className="flex items-center gap-2">
               <Globe className="w-4 h-4" />
               API TESTING
+            </div>
+          </button>
+          <button
+            data-testid="tab-breach"
+            onClick={() => setActiveTab('breach')}
+            className={`px-8 py-4 font-body font-medium border-b-2 transition-colors ${
+              activeTab === 'breach'
+                ? 'border-[#0055FF] text-[#0055FF]'
+                : 'border-transparent text-[#71717A] hover:text-[#09090B]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              BREACH LOOKUP
             </div>
           </button>
         </div>
@@ -539,6 +582,164 @@ const Dashboard = () => {
                       </ul>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Email Breach Lookup */}
+        {activeTab === 'breach' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-[#E4E4E7]">
+            {/* Input Panel */}
+            <div className="lg:col-span-5 bg-white p-8">
+              <div className="label-uppercase mb-6">EMAIL BREACH CHECKER</div>
+              
+              <div className="mb-6">
+                <label className="block font-body font-medium text-[#09090B] mb-2">
+                  Email Address
+                </label>
+                <input
+                  data-testid="email-input"
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="user@example.com"
+                  className="w-full px-4 py-3 border border-[#E4E4E7] bg-[#F4F4F5]/30 font-body focus:outline-none focus:border-[#0055FF]"
+                />
+              </div>
+
+              <div className="mb-6 p-4 bg-[#FFF5E6] border border-[#FFCC00]">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-[#FFCC00] flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-[#09090B] font-body">
+                    This tool checks if your email has been compromised in known data breaches.
+                    Your email is not stored or shared.
+                  </div>
+                </div>
+              </div>
+
+              <button
+                data-testid="check-breach-btn"
+                onClick={checkEmailBreach}
+                disabled={loading}
+                className="w-full btn-primary flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    CHECKING...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5" />
+                    CHECK BREACHES
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Results Panel */}
+            <div className="lg:col-span-7 bg-white p-8">
+              <div className="label-uppercase mb-6">BREACH RESULTS</div>
+              
+              {!breachResults && (
+                <div className="flex items-center justify-center h-64 text-[#71717A] font-body">
+                  Enter an email address to check for data breaches.
+                </div>
+              )}
+
+              {breachResults && (
+                <div className="space-y-4">
+                  {/* Risk Level Banner */}
+                  <div className={`p-6 border-2 ${
+                    breachResults.risk_level === 'low' ? 'bg-[#E6F7EE] border-[#00CC66]' :
+                    breachResults.risk_level === 'medium' ? 'bg-[#FFF5E6] border-[#FFCC00]' :
+                    'bg-[#FFE6E6] border-[#FF3333]'
+                  }`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      {breachResults.risk_level === 'low' ? (
+                        <Shield className="w-8 h-8 text-[#00CC66]" />
+                      ) : breachResults.risk_level === 'medium' ? (
+                        <AlertTriangle className="w-8 h-8 text-[#FFCC00]" />
+                      ) : (
+                        <AlertTriangle className="w-8 h-8 text-[#FF3333]" />
+                      )}
+                      <div>
+                        <div className="font-heading font-black text-2xl text-[#09090B] uppercase">
+                          {breachResults.risk_level} RISK
+                        </div>
+                        <div className="font-body text-sm text-[#71717A]">
+                          {breachResults.breaches_found} {breachResults.breaches_found === 1 ? 'breach' : 'breaches'} detected
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Breach Details */}
+                  {breachResults.breach_data && breachResults.breach_data.length > 0 && (
+                    <div className="border border-[#E4E4E7]">
+                      <div className="bg-[#F4F4F5] px-6 py-3 border-b border-[#E4E4E7]">
+                        <div className="label-uppercase">BREACHES FOUND</div>
+                      </div>
+                      <div className="divide-y divide-[#E4E4E7]">
+                        {breachResults.breach_data.map((breach, idx) => (
+                          <div key={idx} className="p-4">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="font-body font-medium text-[#09090B]">
+                                {breach.name}
+                              </div>
+                              <span className={`status-badge ${
+                                breach.severity === 'critical' ? 'status-error' :
+                                breach.severity === 'high' ? 'status-warning' :
+                                'bg-[#FFCC00] text-[#09090B] border-[#FFCC00]'
+                              }`}>
+                                {breach.severity}
+                              </span>
+                            </div>
+                            <div className="text-sm text-[#71717A] font-body mb-2">
+                              Date: {breach.date} • Records: {breach.records}
+                            </div>
+                            {breach.data_classes && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {breach.data_classes.map((dataClass, i) => (
+                                  <span
+                                    key={i}
+                                    className="px-2 py-1 bg-[#F4F4F5] border border-[#E4E4E7] text-xs font-code"
+                                  >
+                                    {dataClass}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  <div className="border border-[#E4E4E7]">
+                    <div className="bg-[#F4F4F5] px-6 py-3 border-b border-[#E4E4E7]">
+                      <div className="label-uppercase">RECOMMENDATIONS</div>
+                    </div>
+                    <div className="p-6">
+                      <ul className="space-y-3">
+                        {breachResults.recommendations.map((rec, idx) => (
+                          <li key={idx} className="flex items-start gap-3 font-body text-[#09090B]">
+                            <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                              breachResults.risk_level === 'high' ? 'bg-[#FF3333]' :
+                              breachResults.risk_level === 'medium' ? 'bg-[#FFCC00]' :
+                              'bg-[#00CC66]'
+                            }`}>
+                              {idx + 1}
+                            </span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

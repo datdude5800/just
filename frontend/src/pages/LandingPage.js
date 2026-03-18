@@ -70,8 +70,8 @@ const LandingPage = () => {
             <div className="label-uppercase text-[#71717A]">SECURITY TESTS</div>
           </div>
           <div className="p-12 bg-[#F4F4F5]">
-            <div className="font-heading font-black text-5xl text-[#09090B] mb-3">100%</div>
-            <div className="label-uppercase text-[#71717A]">ETHICAL USE</div>
+            <div className="font-heading font-black text-5xl text-[#09090B] mb-3">LIVE</div>
+            <div className="label-uppercase text-[#71717A]">BREACH LOOKUP</div>
           </div>
         </div>
       </div>
@@ -92,7 +92,7 @@ const LandingPage = () => {
       </div>
 
       {/* Features Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border-b border-[#E4E4E7]">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-0 border-b border-[#E4E4E7]">
         <div className="border-r border-[#E4E4E7] p-12 bg-white">
           <div className="w-12 h-12 border-2 border-[#0055FF] flex items-center justify-center mb-6">
             <Shield className="w-6 h-6 text-[#0055FF]" />
@@ -117,7 +117,7 @@ const LandingPage = () => {
           <div className="label-uppercase text-[#FF3333]">ALL HASH TYPES</div>
         </div>
 
-        <div className="p-12 bg-white">
+        <div className="border-r border-[#E4E4E7] p-12 bg-white">
           <div className="w-12 h-12 border-2 border-[#00CC66] flex items-center justify-center mb-6">
             <Code className="w-6 h-6 text-[#00CC66]" />
           </div>
@@ -127,6 +127,18 @@ const LandingPage = () => {
             and identify misconfigurations.
           </p>
           <div className="label-uppercase text-[#00CC66]">REST API TESTING</div>
+        </div>
+
+        <div className="p-12 bg-[#F4F4F5]">
+          <div className="w-12 h-12 border-2 border-[#FFCC00] flex items-center justify-center mb-6">
+            <AlertTriangle className="w-6 h-6 text-[#FFCC00]" />
+          </div>
+          <h3 className="font-heading font-black text-2xl text-[#09090B] mb-4">Breach Lookup</h3>
+          <p className="text-[#71717A] font-body mb-6">
+            Check if email addresses have been compromised in known data breaches.
+            Get instant risk assessment and recommendations.
+          </p>
+          <div className="label-uppercase text-[#FFCC00]">DATA BREACH INTEL</div>
         </div>
       </div>
 

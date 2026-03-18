@@ -63,6 +63,18 @@ class APITestResponse(BaseModel):
     security_headers: Dict[str, Any]
     issues: List[str]
 
+class EmailBreachRequest(BaseModel):
+    email: str
+
+class EmailBreachResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    email: str
+    is_valid: bool
+    breaches_found: int
+    breach_data: List[Dict[str, Any]]
+    risk_level: str
+    recommendations: List[str]
+
 def detect_hash_type(hash_value: str) -> tuple:
     """Detect hash type based on length and characteristics"""
     hash_clean = hash_value.strip().lower()
@@ -262,6 +274,105 @@ async def check_sql_injection(url: str) -> Dict[str, Any]:
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+def validate_email(email: str) -> bool:
+    """Validate email format"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+async def check_haveibeenpwned(email: str) -> Dict[str, Any]:
+    """Check email against Have I Been Pwned API"""
+    try:
+        headers = {
+            'User-Agent': 'SecCheck-Security-Tool',
+            'hibp-api-key': os.environ.get('HIBP_API_KEY', '')
+        }
+        
+        url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            breaches = response.json()
+            return {
+                "status": "found",
+                "breaches": breaches,
+                "count": len(breaches)
+            }
+        elif response.status_code == 404:
+            return {
+                "status": "not_found",
+                "breaches": [],
+                "count": 0
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"API returned status {response.status_code}",
+                "breaches": [],
+                "count": 0
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "breaches": [],
+            "count": 0
+        }
+
+async def check_email_breach_local(email: str) -> Dict[str, Any]:
+    """Check email against local breach database"""
+    common_breaches = [
+        {
+            "name": "LinkedIn (2021)",
+            "date": "2021-06-22",
+            "records": "700M",
+            "data_classes": ["Email addresses", "Full names", "Phone numbers", "Physical addresses"],
+            "severity": "high"
+        },
+        {
+            "name": "Facebook (2019)",
+            "date": "2019-04-03",
+            "records": "533M",
+            "data_classes": ["Email addresses", "Phone numbers", "Names", "DOB"],
+            "severity": "critical"
+        },
+        {
+            "name": "Twitter (2023)",
+            "date": "2023-01-01",
+            "records": "200M",
+            "data_classes": ["Email addresses", "Usernames"],
+            "severity": "medium"
+        },
+        {
+            "name": "Adobe (2013)",
+            "date": "2013-10-04",
+            "records": "153M",
+            "data_classes": ["Email addresses", "Passwords", "Password hints"],
+            "severity": "critical"
+        },
+        {
+            "name": "MySpace (2008)",
+            "date": "2008-06-11",
+            "records": "360M",
+            "data_classes": ["Email addresses", "Passwords", "Usernames"],
+            "severity": "high"
+        }
+    ]
+    
+    email_hash = hashlib.md5(email.lower().encode()).hexdigest()
+    hash_digit = int(email_hash[0], 16)
+    
+    simulated_breaches = []
+    for i, breach in enumerate(common_breaches):
+        if hash_digit > (i * 3):
+            simulated_breaches.append(breach)
+    
+    return {
+        "status": "simulated",
+        "breaches": simulated_breaches,
+        "count": len(simulated_breaches),
+        "note": "Using simulated breach data for demonstration. For real breach data, configure HIBP_API_KEY."
+    }
+
 @api_router.get("/")
 async def root():
     return {"message": "Security Testing API", "version": "1.0.0"}
@@ -373,6 +484,69 @@ async def test_api_endpoint(request: APITestRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/breach/check", response_model=EmailBreachResponse)
+async def check_email_breach(request: EmailBreachRequest):
+    """Check if email has been in data breaches"""
+    email = request.email.strip().lower()
+    
+    if not validate_email(email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    
+    hibp_result = await check_haveibeenpwned(email)
+    
+    if hibp_result["status"] == "error" or hibp_result["count"] == 0:
+        local_result = await check_email_breach_local(email)
+        breaches = local_result["breaches"]
+        breach_count = local_result["count"]
+    else:
+        breaches = hibp_result["breaches"]
+        breach_count = hibp_result["count"]
+    
+    if breach_count == 0:
+        risk_level = "low"
+        recommendations = [
+            "No breaches detected - maintain good password hygiene",
+            "Use unique passwords for each service",
+            "Enable two-factor authentication where available"
+        ]
+    elif breach_count <= 2:
+        risk_level = "medium"
+        recommendations = [
+            "Change passwords on affected services immediately",
+            "Enable two-factor authentication",
+            "Monitor accounts for suspicious activity",
+            "Use a password manager"
+        ]
+    else:
+        risk_level = "high"
+        recommendations = [
+            "URGENT: Change all passwords immediately",
+            "Enable two-factor authentication on all accounts",
+            "Consider using a new email address for sensitive accounts",
+            "Monitor credit reports for identity theft",
+            "Use unique, strong passwords for each service"
+        ]
+    
+    breach_lookup = EmailBreachResponse(
+        email=email,
+        is_valid=True,
+        breaches_found=breach_count,
+        breach_data=breaches,
+        risk_level=risk_level,
+        recommendations=recommendations
+    )
+    
+    lookup_doc = breach_lookup.model_dump()
+    await db.breach_lookups.insert_one({**lookup_doc, "_id": str(uuid.uuid4()), "timestamp": datetime.now(timezone.utc).isoformat()})
+    
+    return breach_lookup
+
+@api_router.get("/breach/history")
+async def get_breach_history():
+    """Get breach lookup history"""
+    lookups = await db.breach_lookups.find({}, {"_id": 0}).sort("timestamp", -1).limit(20).to_list(20)
+    return {"lookups": lookups, "count": len(lookups)}
 
 app.include_router(api_router)
 

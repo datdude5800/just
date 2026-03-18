@@ -204,6 +204,57 @@ class SecurityAPITester:
             }
         )
 
+    def test_email_breach_check_valid(self):
+        """Test email breach lookup with valid email (NEW FEATURE)"""
+        return self.run_test(
+            "Email Breach Check - Valid Email",
+            "POST",
+            "breach/check",
+            200,
+            data={"email": "test@example.com"},
+            timeout=15
+        )
+
+    def test_email_breach_check_gmail(self):
+        """Test email breach lookup with Gmail address (NEW FEATURE)"""
+        return self.run_test(
+            "Email Breach Check - Gmail",
+            "POST", 
+            "breach/check",
+            200,
+            data={"email": "user@gmail.com"},
+            timeout=15
+        )
+
+    def test_email_breach_check_invalid(self):
+        """Test email breach lookup with invalid email format (NEW FEATURE)"""
+        return self.run_test(
+            "Email Breach Check - Invalid Format",
+            "POST",
+            "breach/check", 
+            400,
+            data={"email": "invalid-email-format"}
+        )
+
+    def test_email_breach_check_empty(self):
+        """Test email breach lookup with empty email (NEW FEATURE)"""
+        return self.run_test(
+            "Email Breach Check - Empty Email",
+            "POST",
+            "breach/check",
+            400, 
+            data={"email": ""}
+        )
+
+    def test_breach_history(self):
+        """Test breach lookup history endpoint (NEW FEATURE)"""
+        return self.run_test(
+            "Breach Lookup History",
+            "GET",
+            "breach/history",
+            200
+        )
+
     def test_invalid_endpoints(self):
         """Test invalid endpoints return proper errors"""
         success, _ = self.run_test(
@@ -235,6 +286,12 @@ def main():
         tester.test_pentest_history,
         tester.test_api_endpoint_test,
         tester.test_api_endpoint_test_post,
+        # NEW FEATURE TESTS - Email Breach Lookup
+        tester.test_email_breach_check_valid,
+        tester.test_email_breach_check_gmail,
+        tester.test_email_breach_check_invalid,
+        tester.test_email_breach_check_empty,
+        tester.test_breach_history,
         tester.test_invalid_endpoints,
         # Skip comprehensive test for now due to time
         # tester.test_pentest_comprehensive,
