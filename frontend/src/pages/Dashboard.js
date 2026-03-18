@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Shield, Hash, Globe, Play, Loader2, ChevronDown, ChevronUp, Copy, Check, Mail, AlertTriangle, Eye, Lock, DollarSign, CreditCard } from 'lucide-react';
+import { Shield, Hash, Globe, Play, Loader2, ChevronDown, ChevronUp, Copy, Check, Mail, AlertTriangle, Eye, Lock, DollarSign, CreditCard, EyeOff, Code } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -53,6 +53,8 @@ const Dashboard = () => {
   const [detailSearchType, setDetailSearchType] = useState('email');
   const [consentGiven, setConsentGiven] = useState(false);
   const [breachDetails, setBreachDetails] = useState(null);
+  const [showPasswords, setShowPasswords] = useState({});
+  const [showRawData, setShowRawData] = useState(false);
 
   // Security audit state
   const [auditEmail, setAuditEmail] = useState('');
@@ -65,6 +67,13 @@ const Dashboard = () => {
   const [socialResults, setSocialResults] = useState(null);
 
   const [expandedSections, setExpandedSections] = useState({});
+
+  const togglePassword = (id) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -1327,7 +1336,7 @@ const Dashboard = () => {
                   <div className="border-2 border-[#FF3333] bg-[#FFE6E6] p-6">
                     <div className="flex items-center gap-3 mb-3">
                       <Lock className="w-8 h-8 text-[#FF3333]" />
-                      <div>
+                      <div className="flex-1">
                         <div className="font-heading font-black text-2xl text-[#09090B]">
                           {breachDetails.total_records} BREACH RECORDS
                         </div>
@@ -1335,8 +1344,54 @@ const Dashboard = () => {
                           Searched by: {breachDetails.search_type} • Query: {breachDetails.query}
                         </div>
                       </div>
+                      <button
+                        onClick={() => setShowRawData(!showRawData)}
+                        className="btn-outline py-2 px-4 text-sm flex items-center gap-2"
+                        data-testid="toggle-raw-data"
+                      >
+                        <Code className="w-4 h-4" />
+                        {showRawData ? 'HIDE' : 'VIEW'} RAW DATA
+                      </button>
+                      <button
+                        onClick={() => {
+                          const dataStr = JSON.stringify(breachDetails, null, 2);
+                          const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                          const url = URL.createObjectURL(dataBlob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `breach_data_${breachDetails.query}_${Date.now()}.json`;
+                          link.click();
+                          URL.revokeObjectURL(url);
+                          toast.success('Data downloaded');
+                        }}
+                        className="bg-[#FF3333] text-white py-2 px-4 text-sm flex items-center gap-2 hover:bg-[#DD2222] transition-colors"
+                        data-testid="download-data"
+                      >
+                        <Copy className="w-4 h-4" />
+                        DOWNLOAD ALL DATA
+                      </button>
                     </div>
                   </div>
+
+                  {/* Raw Data View */}
+                  {showRawData && (
+                    <div className="border-2 border-[#0055FF] bg-white">
+                      <div className="bg-[#0055FF] px-6 py-3 flex items-center justify-between">
+                        <div className="label-uppercase text-white">COMPLETE RAW DATA (JSON)</div>
+                        <button
+                          onClick={() => copyToClipboard(JSON.stringify(breachDetails, null, 2))}
+                          className="text-white hover:bg-white/20 p-2 transition-colors"
+                        >
+                          {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      <div className="p-4 bg-[#09090B] max-h-96 overflow-auto">
+                        <pre className="text-xs font-code text-[#00CC66]">
+                          {JSON.stringify(breachDetails, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Exposed Data Grid */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-px bg-[#E4E4E7]">
@@ -1381,8 +1436,31 @@ const Dashboard = () => {
                   {/* All Passwords */}
                   {breachDetails.compromised_passwords && breachDetails.compromised_passwords.length > 0 && (
                     <div className="border-2 border-[#FF3333]">
-                      <div className="bg-[#FFE6E6] px-6 py-3 border-b border-[#FF3333]">
-                        <div className="label-uppercase text-[#FF3333]">ALL COMPROMISED PASSWORDS</div>
+                      <div className="bg-[#FFE6E6] px-6 py-3 border-b border-[#FF3333] flex items-center justify-between">
+                        <div className="label-uppercase text-[#FF3333]">ALL COMPROMISED PASSWORDS ({breachDetails.compromised_passwords.length})</div>
+                        <button
+                          onClick={() => {
+                            const allVisible = breachDetails.compromised_passwords.every((_, idx) => showPasswords[`pwd-${idx}`]);
+                            const newState = {};
+                            breachDetails.compromised_passwords.forEach((_, idx) => {
+                              newState[`pwd-${idx}`] = !allVisible;
+                            });
+                            setShowPasswords(newState);
+                          }}
+                          className="text-xs bg-[#FF3333] text-white px-3 py-1 hover:bg-[#DD2222] transition-colors flex items-center gap-2"
+                        >
+                          {breachDetails.compromised_passwords.every((_, idx) => showPasswords[`pwd-${idx}`]) ? (
+                            <>
+                              <EyeOff className="w-3 h-3" />
+                              HIDE ALL
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3 h-3" />
+                              REVEAL ALL
+                            </>
+                          )}
+                        </button>
                       </div>
                       <div className="divide-y divide-[#FF3333]">
                         {breachDetails.compromised_passwords.map((pwd, idx) => (
@@ -1394,22 +1472,40 @@ const Dashboard = () => {
                               </div>
                               <span className="status-badge status-error text-xs">CRACKED</span>
                             </div>
-                            <div className="hash-display mb-2 text-xs">
-                              Hash: {pwd.password_hash}
+                            <div className="mb-3">
+                              <div className="text-xs text-[#71717A] mb-1">Password Hash:</div>
+                              <div className="hash-display text-xs break-all">
+                                {pwd.password_hash}
+                              </div>
                             </div>
-                            <div className="bg-[#FFE6E6] border-2 border-[#FF3333] p-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <div className="text-xs label-uppercase text-[#FF3333] mb-1">PLAINTEXT PASSWORD</div>
-                                  <div className="font-code font-bold text-xl text-[#FF3333]">{pwd.plaintext}</div>
-                                  <div className="text-xs text-[#71717A] mt-1">First seen: {pwd.first_seen}</div>
+                            <div className="bg-[#FFE6E6] border-2 border-[#FF3333] p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="label-uppercase text-xs text-[#FF3333]">PLAINTEXT PASSWORD</div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => togglePassword(`pwd-${idx}`)}
+                                    className="p-2 bg-white hover:bg-[#F4F4F5] border border-[#FF3333] transition-colors"
+                                    data-testid={`toggle-pwd-${idx}`}
+                                  >
+                                    {showPasswords[`pwd-${idx}`] ? (
+                                      <EyeOff className="w-4 h-4 text-[#FF3333]" />
+                                    ) : (
+                                      <Eye className="w-4 h-4 text-[#FF3333]" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => copyToClipboard(pwd.plaintext)}
+                                    className="p-2 hover:bg-white transition-colors border border-[#FF3333]"
+                                  >
+                                    {copied ? <Check className="w-4 h-4 text-[#00CC66]" /> : <Copy className="w-4 h-4 text-[#FF3333]" />}
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={() => copyToClipboard(pwd.plaintext)}
-                                  className="p-2 hover:bg-white transition-colors border border-[#FF3333]"
-                                >
-                                  {copied ? <Check className="w-5 h-5 text-[#00CC66]" /> : <Copy className="w-5 h-5 text-[#FF3333]" />}
-                                </button>
+                              </div>
+                              <div className="font-code font-bold text-2xl text-[#FF3333] bg-white p-3 border border-[#FF3333]">
+                                {showPasswords[`pwd-${idx}`] ? pwd.plaintext : '••••••••'}
+                              </div>
+                              <div className="text-xs text-[#71717A] mt-2">
+                                First seen: {pwd.first_seen} • Click eye icon to {showPasswords[`pwd-${idx}`] ? 'hide' : 'reveal'}
                               </div>
                             </div>
                           </div>
@@ -1685,7 +1781,20 @@ const Dashboard = () => {
                                     <td className="px-4 py-3">
                                       {cred.password_plaintext ? (
                                         <div className="flex items-center gap-2">
-                                          <span className="font-code text-xs font-bold text-[#FF3333]">{cred.password_plaintext}</span>
+                                          <span className="font-code text-xs font-bold text-[#FF3333]">
+                                            {showPasswords[`cred-${idx}`] ? cred.password_plaintext : '••••••••'}
+                                          </span>
+                                          <button
+                                            onClick={() => togglePassword(`cred-${idx}`)}
+                                            className="p-1 hover:bg-[#F4F4F5] transition-colors"
+                                            data-testid={`toggle-cred-${idx}`}
+                                          >
+                                            {showPasswords[`cred-${idx}`] ? (
+                                              <EyeOff className="w-3 h-3 text-[#71717A]" />
+                                            ) : (
+                                              <Eye className="w-3 h-3 text-[#71717A]" />
+                                            )}
+                                          </button>
                                           <button
                                             onClick={() => copyToClipboard(cred.password_plaintext)}
                                             className="p-1 hover:bg-white transition-colors"
@@ -1831,7 +1940,19 @@ const Dashboard = () => {
                                     <div key={i} className="bg-white p-2 border border-[#FF3333]">
                                       <div className="text-xs text-[#71717A] mb-1">{pwd.account}</div>
                                       <div className="flex items-center gap-2">
-                                        <span className="font-code text-sm font-bold text-[#FF3333]">{pwd.password}</span>
+                                        <span className="font-code text-sm font-bold text-[#FF3333]">
+                                          {showPasswords[`vuln-${idx}-${i}`] ? pwd.password : '••••••••'}
+                                        </span>
+                                        <button
+                                          onClick={() => togglePassword(`vuln-${idx}-${i}`)}
+                                          className="p-1 hover:bg-[#F4F4F5] transition-colors"
+                                        >
+                                          {showPasswords[`vuln-${idx}-${i}`] ? (
+                                            <EyeOff className="w-3 h-3 text-[#71717A]" />
+                                          ) : (
+                                            <Eye className="w-3 h-3 text-[#71717A]" />
+                                          )}
+                                        </button>
                                         <button
                                           onClick={() => copyToClipboard(pwd.password)}
                                           className="p-1 hover:bg-[#F4F4F5] transition-colors"
@@ -2079,8 +2200,19 @@ const Dashboard = () => {
                                     <div className="text-xs text-[#71717A] mb-1">Plaintext:</div>
                                     <div className="flex items-center gap-2">
                                       <div className="font-code text-sm font-bold text-[#FF3333] bg-white border border-[#FF3333] p-2 flex-1">
-                                        {account.password_plaintext}
+                                        {showPasswords[`social-${idx}`] ? account.password_plaintext : '••••••••'}
                                       </div>
+                                      <button
+                                        onClick={() => togglePassword(`social-${idx}`)}
+                                        className="p-2 hover:bg-white border border-[#FF3333] transition-colors"
+                                        data-testid={`toggle-social-${idx}`}
+                                      >
+                                        {showPasswords[`social-${idx}`] ? (
+                                          <EyeOff className="w-4 h-4 text-[#FF3333]" />
+                                        ) : (
+                                          <Eye className="w-4 h-4 text-[#FF3333]" />
+                                        )}
+                                      </button>
                                       <button
                                         onClick={() => copyToClipboard(account.password_plaintext)}
                                         className="p-2 hover:bg-white border border-[#FF3333] transition-colors"
