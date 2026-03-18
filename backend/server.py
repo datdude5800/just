@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -8,7 +9,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import socket
 import ssl
@@ -17,6 +18,8 @@ from urllib.parse import urlparse
 import asyncio
 import re
 import json
+import stripe
+import secrets
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -24,6 +27,15 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Stripe configuration
+stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_demo_key')
+
+# Admin authentication
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD_HASH = hashlib.sha256(os.environ.get('ADMIN_PASSWORD', 'admin123').encode()).hexdigest()
+
+security = HTTPBearer()
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -143,6 +155,43 @@ class SocialMediaSearchResponse(BaseModel):
     compromised_count: int
     security_recommendations: List[str]
     remediation_services: List[Dict[str, Any]]
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+class AdminLoginResponse(BaseModel):
+    token: str
+    username: str
+    role: str
+
+class PaymentRequest(BaseModel):
+    service_id: str
+    customer_email: str
+    payment_method_id: str
+
+class PaymentResponse(BaseModel):
+    payment_intent_id: str
+    status: str
+    amount: float
+    service: str
+
+class ChatbotRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+
+class ChatbotResponse(BaseModel):
+    response: str
+    session_id: str
+    suggestions: List[str]
+
+class AdminDataRequest(BaseModel):
+    data_type: str
+    filters: Optional[Dict[str, Any]] = None
+    
+class AIAgentRequest(BaseModel):
+    task: str
+    parameters: Optional[Dict[str, Any]] = None
 
 def detect_hash_type(hash_value: str) -> tuple:
     """Detect hash type based on length and characteristics"""
@@ -963,39 +1012,52 @@ async def generate_security_audit(email: str, website_url: Optional[str] = None)
     
     premium_features = [
         {
-            "service": "Professional Security Audit",
-            "description": "Comprehensive analysis of all online accounts and digital footprint",
-            "deliverables": ["Full breach history report", "Custom security recommendations", "Priority support"],
-            "price": 99.99,
-            "duration": "One-time"
+            "service": "Basic Security Audit",
+            "description": "Essential security analysis and recommendations",
+            "deliverables": ["Breach history report", "Security recommendations", "Email support"],
+            "price": 30.00,
+            "duration": "One-time",
+            "service_id": "basic_audit"
         },
         {
-            "service": "Managed Password Migration",
-            "description": "Secure password reset service for all compromised accounts",
-            "deliverables": ["Password manager setup", "Guided migration", "Security training"],
-            "price": 149.99,
-            "duration": "One-time"
+            "service": "Password Recovery Service",
+            "description": "Professional password reset for compromised accounts",
+            "deliverables": ["Guided password reset", "Security setup", "Follow-up support"],
+            "price": 50.00,
+            "duration": "One-time",
+            "service_id": "password_recovery"
         },
         {
-            "service": "Complete Identity Protection",
-            "description": "Comprehensive protection for all your accounts and linked emails",
-            "deliverables": ["Monitor all linked accounts", "Dark web monitoring", "Identity theft insurance", "24/7 support"],
-            "price": 79.99,
-            "duration": "Monthly"
+            "service": "Identity Protection Monthly",
+            "description": "Ongoing monitoring and protection",
+            "deliverables": ["Dark web monitoring", "Breach alerts", "Monthly reports"],
+            "price": 75.00,
+            "duration": "Monthly",
+            "service_id": "identity_protection"
         },
         {
-            "service": "Website Security Hardening",
-            "description": "Professional security implementation for your website",
-            "deliverables": ["SSL/TLS configuration", "Security headers setup", "Vulnerability patching", "WAF implementation"],
-            "price": 499.99,
-            "duration": "Per site"
+            "service": "Website Security Setup",
+            "description": "Basic security implementation for your website",
+            "deliverables": ["SSL configuration", "Security headers", "Basic hardening"],
+            "price": 100.00,
+            "duration": "Per site",
+            "service_id": "website_security"
         },
         {
-            "service": "Ongoing Security Monitoring",
-            "description": "24/7 monitoring of your digital presence for new breaches",
-            "deliverables": ["Real-time breach alerts", "Monthly reports", "Incident response"],
-            "price": 29.99,
-            "duration": "Monthly"
+            "service": "Premium Protection Package",
+            "description": "Comprehensive security solution",
+            "deliverables": ["24/7 monitoring", "Incident response", "Premium support", "Identity insurance"],
+            "price": 150.00,
+            "duration": "Monthly",
+            "service_id": "premium_package"
+        },
+        {
+            "service": "Enterprise Security Suite",
+            "description": "Complete business security solution",
+            "deliverables": ["Full audit", "Employee training", "Custom policies", "Dedicated consultant"],
+            "price": 200.00,
+            "duration": "Per project",
+            "service_id": "enterprise_suite"
         }
     ]
     
@@ -1165,44 +1227,43 @@ async def search_social_media_accounts(query: str, search_type: str) -> Dict[str
     remediation_services = [
         {
             "service": "Social Media Security Package",
-            "description": "Comprehensive security overhaul for all your social media accounts",
+            "description": "Comprehensive security for all social media accounts",
             "deliverables": [
-                "Password reset for all compromised accounts",
+                "Password reset for compromised accounts",
                 "2FA setup on all platforms",
                 "Privacy settings optimization",
-                "Account recovery setup",
-                "Security training session"
+                "Security training"
             ],
-            "price": 199.99,
+            "price": 80.00,
             "duration": "One-time",
-            "savings": "Save $50 vs individual resets"
+            "service_id": "social_security"
         },
         {
             "service": "Identity Protection Plan",
-            "description": "Ongoing monitoring and protection for your digital identity",
+            "description": "Ongoing monitoring and protection",
             "deliverables": [
                 "Dark web monitoring",
                 "Real-time breach alerts",
                 "Monthly security reports",
-                "Identity theft insurance ($1M coverage)",
-                "24/7 fraud resolution support"
+                "24/7 support"
             ],
-            "price": 49.99,
+            "price": 120.00,
             "duration": "Monthly",
+            "service_id": "identity_plan",
             "popular": True
         },
         {
             "service": "Emergency Account Recovery",
-            "description": "Immediate assistance to secure compromised accounts",
+            "description": "Immediate assistance for compromised accounts",
             "deliverables": [
                 "24-hour response time",
                 "Direct platform communication",
-                "Password recovery assistance",
-                "Content removal support",
+                "Password recovery",
                 "Legal documentation"
             ],
-            "price": 299.99,
+            "price": 150.00,
             "duration": "Per incident",
+            "service_id": "emergency_recovery",
             "urgent": True
         }
     ]
@@ -1582,70 +1643,77 @@ async def get_security_pricing():
     """Get pricing for premium security services"""
     services = [
         {
-            "id": "pro_audit",
-            "name": "Professional Security Audit",
-            "price": 99.99,
+            "id": "basic_audit",
+            "name": "Basic Security Audit",
+            "price": 30.00,
             "currency": "USD",
             "billing": "one-time",
             "features": [
-                "Complete breach history analysis",
-                "Custom security recommendations",
-                "Vulnerability assessment",
-                "Priority email support"
+                "Breach history analysis",
+                "Security recommendations",
+                "Email support"
             ]
         },
         {
-            "id": "password_migration",
-            "name": "Managed Password Migration",
-            "price": 149.99,
+            "id": "password_recovery",
+            "name": "Password Recovery Service",
+            "price": 50.00,
             "currency": "USD",
             "billing": "one-time",
             "features": [
-                "Professional password reset service",
-                "Password manager setup & training",
-                "Guided account migration",
-                "30-day follow-up support"
+                "Guided password reset",
+                "Security setup",
+                "Follow-up support"
             ]
         },
         {
-            "id": "website_hardening",
-            "name": "Website Security Hardening",
-            "price": 499.99,
-            "currency": "USD",
-            "billing": "per-site",
-            "features": [
-                "SSL/TLS configuration",
-                "Security headers implementation",
-                "Vulnerability patching",
-                "WAF setup",
-                "Performance optimization"
-            ]
-        },
-        {
-            "id": "monitoring_monthly",
-            "name": "Ongoing Security Monitoring",
-            "price": 29.99,
+            "id": "identity_protection",
+            "name": "Identity Protection Monthly",
+            "price": 75.00,
             "currency": "USD",
             "billing": "monthly",
             "features": [
-                "24/7 breach monitoring",
-                "Real-time alerts",
-                "Monthly security reports",
-                "Incident response assistance"
+                "Dark web monitoring",
+                "Breach alerts",
+                "Monthly reports"
             ]
         },
         {
-            "id": "enterprise",
+            "id": "website_security",
+            "name": "Website Security Setup",
+            "price": 100.00,
+            "currency": "USD",
+            "billing": "per-site",
+            "features": [
+                "SSL configuration",
+                "Security headers",
+                "Basic hardening"
+            ]
+        },
+        {
+            "id": "premium_package",
+            "name": "Premium Protection Package",
+            "price": 150.00,
+            "currency": "USD",
+            "billing": "monthly",
+            "features": [
+                "24/7 monitoring",
+                "Incident response",
+                "Premium support",
+                "Identity insurance"
+            ]
+        },
+        {
+            "id": "enterprise_suite",
             "name": "Enterprise Security Suite",
-            "price": 2499.99,
+            "price": 200.00,
             "currency": "USD",
             "billing": "per-project",
             "features": [
-                "Full security infrastructure audit",
-                "Custom security policy development",
-                "Employee security training",
-                "Compliance certification assistance",
-                "Dedicated security consultant"
+                "Full audit",
+                "Employee training",
+                "Custom policies",
+                "Dedicated consultant"
             ]
         }
     ]
@@ -1692,6 +1760,216 @@ async def get_social_search_history():
     """Get social media search history"""
     searches = await db.social_searches.find({}, {"_id": 0}).sort("timestamp", -1).limit(20).to_list(20)
     return {"searches": searches, "count": len(searches)}
+
+# ============= ADMIN ENDPOINTS =============
+@api_router.post("/admin/login", response_model=AdminLoginResponse)
+async def admin_login(request: AdminLoginRequest):
+    """Admin login endpoint"""
+    from admin_utils import verify_admin_credentials, generate_admin_token
+    
+    if not verify_admin_credentials(request.username, request.password, ADMIN_USERNAME, ADMIN_PASSWORD_HASH):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    token = generate_admin_token(request.username)
+    
+    return AdminLoginResponse(
+        token=token,
+        username=request.username,
+        role="admin"
+    )
+
+async def verify_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify admin token"""
+    from admin_utils import verify_admin_token
+    
+    token_data = verify_admin_token(credentials.credentials)
+    if not token_data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    return token_data
+
+@api_router.get("/admin/data")
+async def get_admin_data(data_type: str, admin = Depends(verify_admin)):
+    """Get admin data for dashboard"""
+    if data_type == "users":
+        users = await db.breach_lookups.aggregate([
+            {"$group": {"_id": "$email", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 100}
+        ]).to_list(100)
+        return {"data": users, "total": len(users)}
+    
+    elif data_type == "revenue":
+        payments = await db.payments.find({}, {"_id": 0}).sort("timestamp", -1).limit(100).to_list(100)
+        total_revenue = sum(p.get("amount", 0) for p in payments)
+        return {"payments": payments, "total_revenue": total_revenue, "count": len(payments)}
+    
+    elif data_type == "services":
+        services = await db.payments.aggregate([
+            {"$group": {"_id": "$service", "count": {"$sum": 1}, "revenue": {"$sum": "$amount"}}},
+            {"$sort": {"revenue": -1}}
+        ]).to_list(100)
+        return {"services": services}
+    
+    elif data_type == "activity":
+        scans = await db.pentest_scans.count_documents({})
+        breaches = await db.breach_lookups.count_documents({})
+        cracks = await db.hash_cracks.count_documents({})
+        socials = await db.social_searches.count_documents({})
+        
+        return {
+            "total_scans": scans,
+            "total_breaches": breaches,
+            "total_cracks": cracks,
+            "total_social_searches": socials,
+            "total_activities": scans + breaches + cracks + socials
+        }
+    
+    else:
+        raise HTTPException(status_code=400, detail="Invalid data type")
+
+@api_router.post("/admin/manage")
+async def admin_manage_data(request: AdminDataRequest, admin = Depends(verify_admin)):
+    """Admin data management"""
+    data_type = request.data_type
+    filters = request.filters or {}
+    
+    if data_type == "clear_cache":
+        # Clear old cached data
+        result = await db.breach_lookups.delete_many({"timestamp": {"$lt": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()}})
+        return {"deleted": result.deleted_count, "message": "Cache cleared successfully"}
+    
+    elif data_type == "export":
+        # Export data for admin
+        collection = filters.get("collection", "breach_lookups")
+        data = await db[collection].find({}, {"_id": 0}).limit(1000).to_list(1000)
+        return {"data": data, "count": len(data)}
+    
+    else:
+        return {"message": "Management task queued"}
+
+# ============= PAYMENT ENDPOINTS =============
+@api_router.post("/payment/create", response_model=PaymentResponse)
+async def create_payment(request: PaymentRequest):
+    """Create payment with Stripe"""
+    from admin_utils import process_payment_with_stripe
+    
+    # Get service details
+    services = {
+        "basic_audit": {"name": "Basic Security Audit", "price": 30.00},
+        "password_recovery": {"name": "Password Recovery Service", "price": 50.00},
+        "identity_protection": {"name": "Identity Protection Monthly", "price": 75.00},
+        "website_security": {"name": "Website Security Setup", "price": 100.00},
+        "premium_package": {"name": "Premium Protection Package", "price": 150.00},
+        "enterprise_suite": {"name": "Enterprise Security Suite", "price": 200.00},
+        "social_security": {"name": "Social Media Security Package", "price": 80.00},
+        "identity_plan": {"name": "Identity Protection Plan", "price": 120.00},
+        "emergency_recovery": {"name": "Emergency Account Recovery", "price": 150.00}
+    }
+    
+    if request.service_id not in services:
+        raise HTTPException(status_code=400, detail="Invalid service ID")
+    
+    service = services[request.service_id]
+    
+    # Process payment
+    result = process_payment_with_stripe(
+        stripe,
+        service["price"],
+        "usd",
+        request.customer_email,
+        request.payment_method_id,
+        service["name"]
+    )
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    # Store payment record
+    payment_record = {
+        "_id": result["payment_intent_id"],
+        "service": service["name"],
+        "service_id": request.service_id,
+        "amount": service["price"],
+        "customer_email": request.customer_email,
+        "status": result["status"],
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.payments.insert_one(payment_record)
+    
+    return PaymentResponse(
+        payment_intent_id=result["payment_intent_id"],
+        status=result["status"],
+        amount=service["price"],
+        service=service["name"]
+    )
+
+@api_router.get("/payment/config")
+async def get_payment_config():
+    """Get Stripe publishable key"""
+    return {
+        "publishable_key": os.environ.get('STRIPE_PUBLISHABLE_KEY', 'pk_test_demo_key')
+    }
+
+# ============= AI AGENT ENDPOINTS =============
+@api_router.post("/agent/execute")
+async def execute_ai_agent(request: AIAgentRequest, admin = Depends(verify_admin)):
+    """Execute AI agent task"""
+    from admin_utils import get_ai_agent_response
+    
+    result = get_ai_agent_response(request.task, request.parameters)
+    
+    # Log agent activity
+    await db.agent_logs.insert_one({
+        "_id": str(uuid.uuid4()),
+        "task": request.task,
+        "result": result,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return result
+
+@api_router.get("/agent/status")
+async def get_agent_status(admin = Depends(verify_admin)):
+    """Get AI agent system status"""
+    recent_tasks = await db.agent_logs.find({}, {"_id": 0}).sort("timestamp", -1).limit(10).to_list(10)
+    
+    return {
+        "status": "operational",
+        "available_tasks": [
+            "optimize database",
+            "backup database",
+            "security scan",
+            "monitor system",
+            "clean maintenance"
+        ],
+        "recent_executions": recent_tasks
+    }
+
+# ============= CHATBOT ENDPOINTS =============
+@api_router.post("/chatbot/message", response_model=ChatbotResponse)
+async def chatbot_message(request: ChatbotRequest):
+    """Customer service chatbot"""
+    from admin_utils import get_chatbot_response
+    
+    session_id = request.session_id or str(uuid.uuid4())
+    
+    response_data = get_chatbot_response(request.message)
+    
+    # Log conversation
+    await db.chatbot_logs.insert_one({
+        "_id": str(uuid.uuid4()),
+        "session_id": session_id,
+        "message": request.message,
+        "response": response_data["response"],
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return ChatbotResponse(
+        response=response_data["response"],
+        session_id=session_id,
+        suggestions=response_data["suggestions"]
+    )
 
 app.include_router(api_router)
 
